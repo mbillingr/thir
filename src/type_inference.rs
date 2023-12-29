@@ -1,10 +1,11 @@
+use crate::instantiate::Instantiate;
 use crate::kinds::Kind;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
 use crate::substitutions::Subst;
 use crate::types::{Type, Tyvar};
 use crate::unification::mgu;
-use crate::{enum_id, inst, Int};
+use crate::{enum_id, Int};
 
 /// The type inference state
 pub struct TI {
@@ -39,7 +40,7 @@ impl TI {
         match sc {
             Scheme::Forall(ks, qt) => {
                 let ts: Vec<_> = ks.iter().map(|k| self.new_tvar(k.clone())).collect();
-                inst(&ts, qt)
+                qt.inst(&ts)
             }
         }
     }

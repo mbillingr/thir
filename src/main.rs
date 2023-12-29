@@ -16,6 +16,7 @@ macro_rules! list {
 
 mod assumptions;
 mod classes;
+mod instantiate;
 mod kinds;
 mod predicates;
 mod qualified;
@@ -147,50 +148,6 @@ fn find<'a>(i: &Id, ass: impl IntoIterator<Item = &'a Assump>) -> Result<&'a Sch
         }
     }
     Err(format!("unbound identifier: {i}"))
-}
-
-fn inst<T: Instantiate>(ts: &[Type], t: &T) -> T {
-    t.inst(ts)
-}
-
-trait Instantiate {
-    fn inst(&self, ts: &[Type]) -> Self;
-}
-
-impl Instantiate for Type {
-    fn inst(&self, ts: &[Type]) -> Self {
-        match self {
-            Type::TApp(app) => Type::tapp(app.0.inst(ts), app.1.inst(ts)),
-            Type::TGen(n) => ts[*n].clone(),
-            t => t.clone(),
-        }
-    }
-}
-
-impl<T: Instantiate> Instantiate for Vec<T> {
-    fn inst(&self, ts: &[Type]) -> Self {
-        self.iter().map(|t| inst(ts, t)).collect()
-    }
-}
-
-impl<T: Instantiate> Instantiate for List<T> {
-    fn inst(&self, ts: &[Type]) -> Self {
-        self.iter().map(|t| inst(ts, t)).collect()
-    }
-}
-
-impl<T: Instantiate> Instantiate for Qual<T> {
-    fn inst(&self, ts: &[Type]) -> Self {
-        Qual(inst(ts, &self.0), inst(ts, &self.1))
-    }
-}
-
-impl Instantiate for Pred {
-    fn inst(&self, ts: &[Type]) -> Self {
-        match self {
-            Pred::IsIn(c, t) => Pred::IsIn(c.clone(), inst(ts, t)),
-        }
-    }
 }
 
 enum Literal {
