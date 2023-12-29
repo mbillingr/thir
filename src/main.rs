@@ -22,6 +22,7 @@ mod qualified;
 mod scheme;
 mod specifics;
 mod substitutions;
+mod type_inference;
 mod types;
 mod unification;
 
@@ -33,6 +34,7 @@ use crate::qualified::Qual;
 use crate::scheme::Scheme;
 use crate::specifics::{add_core_classes, add_num_classes};
 use crate::substitutions::{Subst, Types};
+use crate::type_inference::TI;
 use crate::types::{Type, Tyvar};
 use crate::unification::{matches, mgu};
 use predicates::{Pred, Pred::IsIn};
@@ -145,45 +147,6 @@ fn find<'a>(i: &Id, ass: impl IntoIterator<Item = &'a Assump>) -> Result<&'a Sch
         }
     }
     Err(format!("unbound identifier: {i}"))
-}
-
-/// The type inference state
-struct TI {
-    subst: Subst,
-    count: Int,
-}
-
-impl TI {
-    pub fn new() -> Self {
-        TI {
-            subst: Subst::null_subst(),
-            count: 0,
-        }
-    }
-
-    pub fn unify(&mut self, t1: &Type, t2: &Type) -> Result<()> {
-        let u = mgu(&self.subst.apply(t1), &self.subst.apply(t2))?;
-        Ok(self.ext_subst(u))
-    }
-
-    pub fn new_tvar(&mut self, k: Kind) -> Type {
-        let v = Tyvar(enum_id(self.count), k);
-        self.count += 1;
-        Type::TVar(v)
-    }
-
-    pub fn fresh_inst(&mut self, sc: &Scheme) -> Qual<Type> {
-        match sc {
-            Scheme::Forall(ks, qt) => {
-                let ts: Vec<_> = ks.iter().map(|k| self.new_tvar(k.clone())).collect();
-                inst(&ts, qt)
-            }
-        }
-    }
-
-    fn ext_subst(&mut self, s: Subst) {
-        self.subst = s.compose(&self.subst); // todo: is the order of composition correct?
-    }
 }
 
 fn inst<T: Instantiate>(ts: &[Type], t: &T) -> T {
@@ -550,7 +513,7 @@ fn ti_expl(
 ) -> Result<Vec<Pred>> {
     let Qual(qs, t) = ti.fresh_inst(sc);
     let ps = ti_alts(ti, ce, ass, alts, &t)?;
-    let s = &ti.subst;
+    let s = &ti.get_subst();
     let qs_ = s.apply(&qs);
     let t_ = s.apply(&t);
     let fs = s.apply(ass).tv();
@@ -605,7 +568,7 @@ fn ti_impls(
         .zip(&ts)
         .map(|(a, t)| ti_alts(ti, ce, &as_, a, t))
         .collect::<Result<Vec<_>>>()?;
-    let s = &ti.subst;
+    let s = &ti.get_subst();
     let ps_ = s.apply(&pss.into_iter().flatten().collect::<Vec<_>>());
     let ts_ = s.apply(&ts);
     let fs = s.apply(ass).tv();
@@ -689,7 +652,7 @@ struct Program(Vec<BindGroup>);
 fn ti_program(ce: &ClassEnv, ass: Vec<Assump>, Program(bgs): &Program) -> Result<Vec<Assump>> {
     let mut ti = TI::new();
     let (ps, as_) = ti_seq(ti_bindgroup, &mut ti, ce, ass, bgs)?;
-    let s = &ti.subst;
+    let s = &ti.get_subst();
     let rs = ce.reduce(&s.apply(&ps))?;
     let s_ = default_subst(ce, vec![], &rs)?;
     Ok(s_.compose(s).apply(&as_))
