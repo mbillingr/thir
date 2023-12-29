@@ -1,7 +1,7 @@
-use crate::predicates::{match_pred, Pred};
+use crate::list;
+use crate::predicates::{match_pred, mgu_pred, Pred};
 use crate::qualified::Qual;
 use crate::types::Type;
-use crate::{list, overlap};
 use crate::{Id, List};
 use std::rc::Rc;
 
@@ -169,4 +169,8 @@ impl EnvTransformer {
             }
         }))
     }
+}
+
+fn overlap(p: &Pred, q: &Pred) -> bool {
+    mgu_pred(p, q).is_ok()
 }

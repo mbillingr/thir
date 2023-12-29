@@ -118,10 +118,6 @@ fn eq_intersect<T: PartialEq>(a: Vec<T>, b: Vec<T>) -> Vec<T> {
     out
 }
 
-fn overlap(p: &Pred, q: &Pred) -> bool {
-    mgu_pred(p, q).is_ok()
-}
-
 #[derive(Clone, Debug, PartialEq)]
 enum Scheme {
     Forall(List<Kind>, Qual<Type>),
