@@ -24,6 +24,24 @@ impl Types for Pred {
     }
 }
 
+impl Pred {
+    /// test if a predicate is in head-normal form
+    pub fn in_hnf(&self) -> bool {
+        fn hnf(t: &Type) -> bool {
+            match t {
+                Type::TVar(_) => true,
+                Type::TCon(_) => false,
+                Type::TApp(app) => hnf(&app.0),
+                Type::TGen(_) => panic!("don't know what to do!"),
+            }
+        }
+
+        match self {
+            Pred::IsIn(_, t) => hnf(t),
+        }
+    }
+}
+
 pub fn mgu_pred(a: &Pred, b: &Pred) -> crate::Result<Subst> {
     lift(mgu, a, b)
 }

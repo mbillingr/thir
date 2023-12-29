@@ -1,8 +1,8 @@
 use crate::predicates::{match_pred, Pred};
 use crate::qualified::Qual;
 use crate::types::Type;
-use crate::{in_hnf, Id, List};
 use crate::{list, overlap};
+use crate::{Id, List};
 use std::rc::Rc;
 
 /// A Type class (Interface) contains a list of super classes and a list of instances.
@@ -94,7 +94,7 @@ impl ClassEnv {
     }
 
     pub fn to_hnf(&self, p: &Pred) -> crate::Result<Vec<Pred>> {
-        if in_hnf(p) {
+        if p.in_hnf() {
             Ok(vec![p.clone()])
         } else {
             match self.by_inst(p) {

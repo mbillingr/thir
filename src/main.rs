@@ -117,22 +117,6 @@ fn eq_intersect<T: PartialEq>(a: Vec<T>, b: Vec<T>) -> Vec<T> {
     out
 }
 
-/// test if a predicate is in head-normal form
-pub fn in_hnf(p: &Pred) -> bool {
-    fn hnf(t: &Type) -> bool {
-        match t {
-            Type::TVar(_) => true,
-            Type::TCon(_) => false,
-            Type::TApp(app) => hnf(&app.0),
-            Type::TGen(_) => panic!("don't know what to do!"),
-        }
-    }
-
-    match p {
-        Pred::IsIn(_, t) => hnf(t),
-    }
-}
-
 fn add_core_classes() -> EnvTransformer {
     use EnvTransformer as ET;
     ET::add_class("Eq".into(), vec![])
