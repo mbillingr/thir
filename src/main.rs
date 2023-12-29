@@ -1,6 +1,20 @@
 // This is "Typying Haskell in Rust", based on "Typing Haskell in Haskell":
 // https://web.cecs.pdx.edu/~mpj/thih/thih.pdf?_gl=1*1kpcq97*_ga*MTIwMTgwNTIxMS4xNzAyMzAzNTg2*_ga_G56YW5RFXN*MTcwMjMwMzU4NS4xLjAuMTcwMjMwMzU4NS4wLjAuMA..
 
+#[macro_export]
+macro_rules! list {
+    () => { List::Nil };
+
+    ($($x:expr),*) => {{
+        let mut lst = List::Nil;
+        $(
+            lst = lst.cons($x);
+        )*
+        lst
+    }};
+}
+
+mod classes;
 mod kinds;
 mod predicates;
 mod qualified;
@@ -9,6 +23,7 @@ mod types;
 mod types_specific;
 mod unification;
 
+use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::{HasKind, Kind};
 use crate::predicates::{match_pred, mgu_pred};
 use crate::qualified::Qual;
@@ -22,22 +37,10 @@ use std::rc::Rc;
 
 type Result<T> = std::result::Result<T, String>;
 
-macro_rules! list {
-    () => { List::Nil };
-
-    ($($x:expr),*) => {{
-        let mut lst = List::Nil;
-        $(
-            lst = lst.cons($x);
-        )*
-        lst
-    }};
-}
-
 fn main() {
     let ce = ClassEnv::default();
-    let ce = add_core_classes()(&ce).unwrap();
-    let ce = add_num_classes()(&ce).unwrap();
+    let ce = add_core_classes().apply(&ce).unwrap();
+    let ce = add_num_classes().apply(&ce).unwrap();
 
     let prog = Program(vec![BindGroup(
         vec![
@@ -114,120 +117,6 @@ fn eq_intersect<T: PartialEq>(a: Vec<T>, b: Vec<T>) -> Vec<T> {
     out
 }
 
-#[derive(Debug, Clone)]
-struct Class(Rc<Vec<Id>>, List<Inst>);
-
-type Inst = Qual<Pred>;
-
-struct ClassEnv {
-    classes: Rc<dyn Fn(&Id) -> Result<Class>>,
-    defaults: List<Type>,
-}
-
-impl Default for ClassEnv {
-    fn default() -> Self {
-        ClassEnv {
-            classes: Rc::new(|i| Err(format!("class {i} not defined"))?),
-            defaults: list![Type::t_int(), Type::t_double()],
-        }
-    }
-}
-
-impl ClassEnv {
-    pub fn supers(&self, name: &Id) -> Rc<Vec<Id>> {
-        (self.classes)(name).unwrap().0
-    }
-
-    pub fn insts(&self, name: &Id) -> List<Inst> {
-        (self.classes)(name).unwrap().1
-    }
-
-    pub fn is_defined(&self, name: &Id) -> bool {
-        (self.classes)(name).is_ok()
-    }
-
-    pub fn modify(&self, name: Id, cls: Class) -> Self {
-        let next = self.classes.clone();
-        ClassEnv {
-            classes: Rc::new(move |j| if j == &name { Ok(cls.clone()) } else { next(j) }),
-            defaults: self.defaults.clone(),
-        }
-    }
-
-    pub fn by_super(&self, p: Pred) -> List<Pred> {
-        match &p {
-            Pred::IsIn(i, t) => List::concat(
-                self.supers(i)
-                    .iter()
-                    .map(|i_| self.by_super(Pred::IsIn(i_.clone(), t.clone()))),
-            )
-            .cons(p),
-        }
-    }
-
-    pub fn by_inst(&self, p: &Pred) -> Result<List<Pred>> {
-        match p {
-            Pred::IsIn(i, t) => self
-                .insts(i)
-                .iter()
-                .map(|Qual(ps, h)| {
-                    let u = match_pred(h, p)?;
-                    Ok(ps.iter().map(|p_| u.apply(p_)).collect())
-                })
-                .filter(Result::is_ok)
-                .map(Result::unwrap)
-                .next()
-                .ok_or_else(|| "no matching instance".to_string()),
-        }
-    }
-
-    pub fn entail(&self, ps: &[Pred], p: &Pred) -> bool {
-        ps.iter()
-            .cloned()
-            .map(|p_| self.by_super(p_))
-            .any(|sup| sup.contains(p))
-            || match self.by_inst(p) {
-                Err(_) => false,
-                Ok(qs) => qs.iter().all(|q| self.entail(ps, p)),
-            }
-    }
-
-    pub fn to_hnfs<'a>(&self, ps: impl IntoIterator<Item = &'a Pred>) -> Result<Vec<Pred>> {
-        let tmp: Result<Vec<_>> = ps.into_iter().map(|p| self.to_hnf(&p)).collect();
-        Ok(tmp?.into_iter().flatten().collect())
-    }
-
-    pub fn to_hnf(&self, p: &Pred) -> Result<Vec<Pred>> {
-        if in_hnf(p) {
-            Ok(vec![p.clone()])
-        } else {
-            match self.by_inst(p) {
-                Err(e) => Err(format!("context reduction ({e}): {p:?}"))?,
-                Ok(ps) => self.to_hnfs(&ps),
-            }
-        }
-    }
-
-    pub fn simplify(&self, mut ps: Vec<Pred>) -> Vec<Pred> {
-        let mut rs = vec![];
-
-        while let Some(p) = ps.pop() {
-            let mut rsps = rs.clone();
-            rsps.extend(ps.clone());
-            if !self.entail(&rsps, &p) {
-                rs.push(p)
-            }
-        }
-
-        rs
-    }
-
-    pub fn reduce(&self, ps: &[Pred]) -> Result<Vec<Pred>> {
-        let qs = self.to_hnfs(ps)?;
-        Ok(self.simplify(qs))
-    }
-}
-
 /// test if a predicate is in head-normal form
 pub fn in_hnf(p: &Pred) -> bool {
     fn hnf(t: &Type) -> bool {
@@ -244,86 +133,40 @@ pub fn in_hnf(p: &Pred) -> bool {
     }
 }
 
-type EnvTransformer = Rc<dyn Fn(&ClassEnv) -> Result<ClassEnv>>;
-
-fn compose_transformers(f: EnvTransformer, g: EnvTransformer) -> EnvTransformer {
-    Rc::new(move |ce| {
-        let ce_ = f(ce)?;
-        g(&ce_)
-    })
-}
-
-fn add_class(i: Id, sis: Vec<Id>) -> EnvTransformer {
-    let sis = Rc::new(sis);
-    Rc::new(move |ce| {
-        if ce.is_defined(&i) {
-            Err("class {i} already defined")?
-        }
-        for j in sis.iter() {
-            if !ce.is_defined(j) {
-                Err("superclass {j} not defined")?
-            }
-        }
-        Ok(ce.modify(i.clone(), Class(sis.clone(), list![])))
-    })
-}
-
-fn add_inst(ps: Vec<Pred>, p: Pred) -> EnvTransformer {
-    Rc::new(move |ce| match &p {
-        Pred::IsIn(i, _) => {
-            let its = ce.insts(&i);
-            let mut qs = its.iter().map(|Qual(_, q)| q);
-            let c = Class(ce.supers(i), its.cons(Qual(ps.clone(), p.clone())));
-            if !ce.is_defined(&i) {
-                Err("no class for instance")?
-            }
-            if qs.any(|q| overlap(&p, q)) {
-                Err("overlapping instance")?
-            }
-            Ok(ce.modify(i.clone(), c))
-        }
-    })
-}
-
 fn add_core_classes() -> EnvTransformer {
-    let et = add_class("Eq".into(), vec![]);
-    let et = compose_transformers(et, add_class("Ord".into(), vec!["Eq".into()]));
-    let et = compose_transformers(et, add_class("Show".into(), vec![]));
-    let et = compose_transformers(et, add_class("Read".into(), vec![]));
-    let et = compose_transformers(et, add_class("Bounded".into(), vec![]));
-    let et = compose_transformers(et, add_class("Enum".into(), vec![]));
-    let et = compose_transformers(et, add_class("Functor".into(), vec![]));
-    let et = compose_transformers(et, add_class("Monad".into(), vec![]));
-    et
+    use EnvTransformer as ET;
+    ET::add_class("Eq".into(), vec![])
+        .compose(ET::add_class("Ord".into(), vec!["Eq".into()]))
+        .compose(ET::add_class("Show".into(), vec![]))
+        .compose(ET::add_class("Read".into(), vec![]))
+        .compose(ET::add_class("Bounded".into(), vec![]))
+        .compose(ET::add_class("Enum".into(), vec![]))
+        .compose(ET::add_class("Functor".into(), vec![]))
+        .compose(ET::add_class("Monad".into(), vec![]))
 }
 
 fn add_num_classes() -> EnvTransformer {
-    let et = add_class("Num".into(), vec!["Eq".into(), "Show".into()]);
-    let et = compose_transformers(
-        et,
-        add_class("Real".into(), vec!["Num".into(), "Ord".into()]),
-    );
-    let et = compose_transformers(et, add_class("Fractional".into(), vec!["Num".into()]));
-    let et = compose_transformers(
-        et,
-        add_class("Integral".into(), vec!["Real".into(), "Enum".into()]),
-    );
-    let et = compose_transformers(
-        et,
-        add_class("RealFrac".into(), vec!["Real".into(), "Fractional".into()]),
-    );
-    let et = compose_transformers(et, add_class("Floating".into(), vec!["Fractional".into()]));
-    let et = compose_transformers(
-        et,
-        add_class(
+    use EnvTransformer as ET;
+    ET::add_class("Num".into(), vec!["Eq".into(), "Show".into()])
+        .compose(ET::add_class(
+            "Real".into(),
+            vec!["Num".into(), "Ord".into()],
+        ))
+        .compose(ET::add_class("Fractional".into(), vec!["Num".into()]))
+        .compose(ET::add_class(
+            "Integral".into(),
+            vec!["Real".into(), "Enum".into()],
+        ))
+        .compose(ET::add_class(
+            "RealFrac".into(),
+            vec!["Real".into(), "Fractional".into()],
+        ))
+        .compose(ET::add_class("Floating".into(), vec!["Fractional".into()]))
+        .compose(ET::add_class(
             "RealFloat".into(),
             vec!["RealFrac".into(), "Floating".into()],
-        ),
-    );
-
-    let et = compose_transformers(et, add_inst(vec![], IsIn("Num".into(), Type::t_int())));
-
-    et
+        ))
+        .compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_int())))
 }
 
 fn overlap(p: &Pred, q: &Pred) -> bool {
@@ -740,7 +583,7 @@ fn candidates(ce: &ClassEnv, Ambiguity(v, qs): &Ambiguity) -> Vec<Type> {
     }
 
     let mut out = vec![];
-    for t_ in &ce.defaults {
+    for t_ in ce.defaults() {
         if is_()
             .map(|i| Pred::IsIn(i.clone(), t_.clone()))
             .all(|p| ce.entail(&[], &p))
