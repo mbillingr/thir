@@ -3,10 +3,11 @@ Types
 !*/
 use crate::kinds::{HasKind, Kind};
 use crate::{Id, Int};
+use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
 /// The type of a value
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Type {
     /// A type variable
     TVar(Tyvar),
@@ -16,10 +17,21 @@ pub enum Type {
 
     /// A type application (applying a type of kind `k1` to a type of
     /// kind `k1 -> k2` results in a type of kind `k2`.)
-    TApp(Rc<(crate::Type, crate::Type)>),
+    TApp(Rc<(Self, Self)>),
 
     /// A generic (quantified) type variable
     TGen(Int),
+}
+
+impl Debug for Type {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::TVar(tv) => write!(f, "{}", tv.0),
+            Type::TCon(tc) => write!(f, "{}", tc.0),
+            Type::TApp(rc) => write!(f, "({:?} {:?})", rc.0, rc.1),
+            Type::TGen(k) => write!(f, "'{k}"),
+        }
+    }
 }
 
 /// A type variable

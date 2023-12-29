@@ -45,7 +45,7 @@ impl Type {
     /// construct the function type constructor
     pub fn t_arrow() -> Self {
         Type::TCon(Tycon(
-            "(->)".into(),
+            "->".into(),
             Kind::kfun(Kind::Star, Kind::kfun(Kind::Star, Kind::Star)),
         ))
     }
@@ -53,7 +53,7 @@ impl Type {
     /// construct the 2-tuple type constructor
     pub fn t_tuple2() -> Self {
         Type::TCon(Tycon(
-            "(,)".into(),
+            ",".into(),
             Kind::kfun(Kind::Star, Kind::kfun(Kind::Star, Kind::Star)),
         ))
     }

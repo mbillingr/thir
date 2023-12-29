@@ -10,6 +10,7 @@ use crate::kinds::{HasKind, Kind};
 use crate::substitutions::{Subst, Types};
 use crate::types::{Type, Tyvar};
 use crate::Pred::IsIn;
+use std::fmt::{Debug, Formatter};
 use std::iter::once;
 use std::rc::Rc;
 
@@ -38,7 +39,7 @@ fn main() {
                 "foo".into(),
                 Scheme::Forall(List::Nil, Qual(vec![], Type::t_int())),
                 vec![Alt(vec![], Expr::Var("bar".into()))],
-            ),
+            ),*/
             Expl(
                 "ident".into(),
                 Scheme::Forall(
@@ -46,7 +47,7 @@ fn main() {
                     Qual(vec![], Type::func(Type::TGen(0), Type::TGen(0))),
                 ),
                 vec![Alt(vec![Pat::PVar("x".into())], Expr::Var("x".into()))],
-            ),*/
+            ),
         ],
         vec![vec![
             // todo: why do the implicits (in particular, the constant) result in generic types?
@@ -78,7 +79,7 @@ fn main() {
     )]);
 
     let r = ti_program(&ce, vec![], &prog);
-    println!("{r:?}")
+    println!("{r:#?}")
 }
 
 type Int = usize;
@@ -236,8 +237,14 @@ fn matches(a: &Type, b: &Type) -> Result<Subst> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 struct Qual<T>(Vec<Pred>, T);
+
+impl<T: Debug> Debug for Qual<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} :=> {:?}", self.0, self.1)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 enum Pred {
@@ -534,10 +541,16 @@ pub fn to_scheme(t: Type) -> Scheme {
     Scheme::Forall(List::Nil, Qual(vec![], t))
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct Assump {
     i: Id,
     sc: Scheme,
+}
+
+impl Debug for Assump {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} :>: {:?}", self.i, self.sc)
+    }
 }
 
 impl Types for Assump {
@@ -1137,10 +1150,24 @@ fn list_intersect<T: PartialEq>(a: impl IntoIterator<Item = T>, mut b: Vec<T>) -
     a.into_iter().filter(|x| b.contains(x)).collect()
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 enum List<T> {
     Nil,
     Elem(Rc<(T, Self)>),
+}
+
+impl<T: Debug> Debug for List<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        let mut es = self.iter();
+        if let Some(e) = es.next() {
+            write!(f, "{:?}", e)?;
+        }
+        for e in es {
+            write!(f, " {:?}", e)?;
+        }
+        write!(f, "]")
+    }
 }
 
 impl<T> List<T> {
