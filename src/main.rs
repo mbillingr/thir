@@ -2,16 +2,20 @@
 // https://web.cecs.pdx.edu/~mpj/thih/thih.pdf?_gl=1*1kpcq97*_ga*MTIwMTgwNTIxMS4xNzAyMzAzNTg2*_ga_G56YW5RFXN*MTcwMjMwMzU4NS4xLjAuMTcwMjMwMzU4NS4wLjAuMA..
 
 mod kinds;
+mod predicates;
+mod qualified;
 mod substitutions;
 mod types;
 mod types_specific;
 mod unification;
 
 use crate::kinds::{HasKind, Kind};
+use crate::predicates::{match_pred, mgu_pred};
+use crate::qualified::Qual;
 use crate::substitutions::{Subst, Types};
 use crate::types::{Type, Tyvar};
 use crate::unification::{matches, mgu};
-use crate::Pred::IsIn;
+use predicates::{Pred, Pred::IsIn};
 use std::fmt::{Debug, Formatter};
 use std::iter::once;
 use std::rc::Rc;
@@ -108,59 +112,6 @@ fn eq_intersect<T: PartialEq>(a: Vec<T>, b: Vec<T>) -> Vec<T> {
         }
     }
     out
-}
-
-#[derive(Clone, PartialEq)]
-struct Qual<T>(Vec<Pred>, T);
-
-impl<T: Debug> Debug for Qual<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} :=> {:?}", self.0, self.1)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum Pred {
-    IsIn(Id, Type),
-}
-
-impl<T: Types> Types for Qual<T> {
-    fn apply_subst(&self, s: &Subst) -> Self {
-        Qual(s.apply(&self.0), s.apply(&self.1))
-    }
-
-    fn tv(&self) -> Vec<Tyvar> {
-        eq_union(self.0.tv(), self.1.tv())
-    }
-}
-
-impl Types for Pred {
-    fn apply_subst(&self, s: &Subst) -> Self {
-        match self {
-            Pred::IsIn(i, t) => Pred::IsIn(i.clone(), s.apply(t)),
-        }
-    }
-
-    fn tv(&self) -> Vec<Tyvar> {
-        match self {
-            Pred::IsIn(i, t) => t.tv(),
-        }
-    }
-}
-
-fn mgu_pred(a: &Pred, b: &Pred) -> Result<Subst> {
-    lift(mgu, a, b)
-}
-
-fn match_pred(a: &Pred, b: &Pred) -> Result<Subst> {
-    lift(matches, a, b)
-}
-
-fn lift(m: impl Fn(&Type, &Type) -> Result<Subst>, a: &Pred, b: &Pred) -> Result<Subst> {
-    match (a, b) {
-        (Pred::IsIn(i1, t1), Pred::IsIn(i2, t2)) if i1 == i2 => m(t1, t2),
-        _ => Err("classes differ")?,
-    }
 }
 
 #[derive(Debug, Clone)]
