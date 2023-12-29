@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use crate::kinds::Kind;
 use crate::types::{Tycon, Type};
 

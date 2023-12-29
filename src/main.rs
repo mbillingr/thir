@@ -2,11 +2,13 @@
 // https://web.cecs.pdx.edu/~mpj/thih/thih.pdf?_gl=1*1kpcq97*_ga*MTIwMTgwNTIxMS4xNzAyMzAzNTg2*_ga_G56YW5RFXN*MTcwMjMwMzU4NS4xLjAuMTcwMjMwMzU4NS4wLjAuMA..
 
 mod kinds;
+mod substitutions;
 mod types;
 mod types_specific;
 
-use crate::kinds::Kind;
-use crate::types::{Tycon, Type, Tyvar};
+use crate::kinds::{HasKind, Kind};
+use crate::substitutions::{Subst, Types};
+use crate::types::{Type, Tyvar};
 use crate::Pred::IsIn;
 use std::iter::once;
 use std::rc::Rc;
@@ -86,95 +88,6 @@ fn enum_id(n: Int) -> Id {
     format!("v{n}")
 }
 
-#[derive(Clone, Debug)]
-enum Subst {
-    Empty,
-    Assoc(Rc<(Tyvar, Type, Subst)>),
-}
-
-impl Subst {
-    pub fn null_subst() -> Self {
-        Self::Empty
-    }
-
-    pub fn single(u: Tyvar, t: Type) -> Self {
-        Self::Assoc(Rc::new((u, t, Self::Empty)))
-    }
-
-    pub fn from_rev_iter(it: impl IntoIterator<Item = (Tyvar, Type)>) -> Self {
-        let mut out = Self::Empty;
-
-        for (u, t) in it {
-            out = Self::Assoc(Rc::new((u, t, out)));
-        }
-
-        out
-    }
-
-    pub fn lookup(&self, u: &Tyvar) -> Option<&Type> {
-        match self {
-            Self::Empty => None,
-            Self::Assoc(ass) if &ass.0 == u => Some(&ass.1),
-            Self::Assoc(ass) => ass.2.lookup(u),
-        }
-    }
-
-    pub fn keys(&self) -> Vec<Tyvar> {
-        let mut out = vec![];
-
-        let mut cursor = self;
-        while let Subst::Assoc(ass) = cursor {
-            let (u, t, nxt) = &**ass;
-            cursor = nxt;
-            out.push(u.clone());
-        }
-
-        out
-    }
-
-    /// @@ operator
-    pub fn compose(&self, other: &Self) -> Self {
-        let mut out = self.clone();
-
-        let mut cursor = other;
-        while let Subst::Assoc(ass) = cursor {
-            let (u, t, nxt) = &**ass;
-            cursor = nxt;
-            out = Self::Assoc(Rc::new((u.clone(), t.clone(), out)));
-        }
-
-        out
-    }
-
-    pub fn merge(&self, other: &Self) -> Result<Self> {
-        for v in eq_intersect(self.keys(), other.keys()) {
-            if apply(self, &Type::TVar(v.clone())) != apply(other, &Type::TVar(v)) {
-                Err("merge fails")?
-            }
-        }
-
-        let mut out = other.clone();
-
-        let mut cursor = self;
-        while let Subst::Assoc(ass) = cursor {
-            let (u, t, nxt) = &**ass;
-            cursor = nxt;
-            out = Self::Assoc(Rc::new((u.clone(), t.clone(), out)));
-        }
-
-        Ok(out)
-    }
-}
-
-trait Types<T: ?Sized = Self> {
-    fn apply_subst(&self, s: &Subst) -> T;
-    fn tv(&self) -> Vec<Tyvar>;
-}
-
-fn apply<U, T: Types<U> + ?Sized>(s: &Subst, this: &T) -> U {
-    this.apply_subst(s)
-}
-
 impl Types for Type {
     fn apply_subst(&self, s: &Subst) -> Self {
         match self {
@@ -182,7 +95,7 @@ impl Types for Type {
                 Some(t) => t.clone(),
                 None => Type::TVar(u.clone()),
             },
-            Type::TApp(app) => Type::tapp(apply(s, &app.0), apply(s, &app.1)),
+            Type::TApp(app) => Type::tapp(s.apply(&app.0), s.apply(&app.1)),
             _ => self.clone(),
         }
     }
@@ -198,7 +111,7 @@ impl Types for Type {
 
 impl<T: Types> Types for Vec<T> {
     fn apply_subst(&self, s: &Subst) -> Self {
-        self.iter().map(|x| apply(s, x)).collect()
+        self.iter().map(|x| s.apply(x)).collect()
     }
 
     fn tv(&self) -> Vec<Tyvar> {
@@ -216,7 +129,7 @@ impl<T: Types> Types for Vec<T> {
 
 impl<T: Types> Types<Vec<T>> for [T] {
     fn apply_subst(&self, s: &Subst) -> Vec<T> {
-        self.iter().map(|x| apply(s, x)).collect()
+        self.iter().map(|x| s.apply(x)).collect()
     }
 
     fn tv(&self) -> Vec<Tyvar> {
@@ -234,7 +147,7 @@ impl<T: Types> Types<Vec<T>> for [T] {
 
 impl<T: Types> Types for List<T> {
     fn apply_subst(&self, s: &Subst) -> Self {
-        self.iter().map(|x| apply(s, x)).collect()
+        self.iter().map(|x| s.apply(x)).collect()
     }
 
     fn tv(&self) -> Vec<Tyvar> {
@@ -274,7 +187,7 @@ fn mgu(a: &Type, b: &Type) -> Result<Subst> {
     match (a, b) {
         (TApp(app1), TApp(app2)) => {
             let s1 = mgu(&app1.0, &app2.0)?;
-            let s2 = mgu(&apply(&s1, &app1.1), &apply(&s1, &app2.1))?;
+            let s2 = mgu(&s1.apply(&app1.1), &s1.apply(&app2.1))?;
             Ok(s2.compose(&s1))
         }
 
@@ -282,7 +195,7 @@ fn mgu(a: &Type, b: &Type) -> Result<Subst> {
 
         (t, TVar(u)) => var_bind(u, t),
 
-        (TCon(tc1), TCon(tc2)) if tc1 == tc2 => Ok(Subst::Empty),
+        (TCon(tc1), TCon(tc2)) if tc1 == tc2 => Ok(Subst::null_subst()),
 
         _ => Err(format!("types do not unify: {a:?}, {b:?}"))?,
     }
@@ -291,7 +204,7 @@ fn mgu(a: &Type, b: &Type) -> Result<Subst> {
 fn var_bind(u: &Tyvar, t: &Type) -> Result<Subst> {
     if let Type::TVar(v) = t {
         if u == v {
-            return Ok(Subst::Empty);
+            return Ok(Subst::null_subst());
         }
     }
 
@@ -317,7 +230,7 @@ fn matches(a: &Type, b: &Type) -> Result<Subst> {
 
         (TVar(u), t) if u.kind() == t.kind() => Ok(Subst::single(u.clone(), t.clone())),
 
-        (TCon(tc1), TCon(tc2)) if tc1 == tc2 => Ok(Subst::Empty),
+        (TCon(tc1), TCon(tc2)) if tc1 == tc2 => Ok(Subst::null_subst()),
 
         _ => Err("types do not match")?,
     }
@@ -333,7 +246,7 @@ enum Pred {
 
 impl<T: Types> Types for Qual<T> {
     fn apply_subst(&self, s: &Subst) -> Self {
-        Qual(apply(s, &self.0), apply(s, &self.1))
+        Qual(s.apply(&self.0), s.apply(&self.1))
     }
 
     fn tv(&self) -> Vec<Tyvar> {
@@ -344,7 +257,7 @@ impl<T: Types> Types for Qual<T> {
 impl Types for Pred {
     fn apply_subst(&self, s: &Subst) -> Self {
         match self {
-            Pred::IsIn(i, t) => Pred::IsIn(i.clone(), apply(s, t)),
+            Pred::IsIn(i, t) => Pred::IsIn(i.clone(), s.apply(t)),
         }
     }
 
@@ -428,7 +341,7 @@ impl ClassEnv {
                 .iter()
                 .map(|Qual(ps, h)| {
                     let u = match_pred(h, p)?;
-                    Ok(ps.iter().map(|p_| apply(&u, p_)).collect())
+                    Ok(ps.iter().map(|p_| u.apply(p_)).collect())
                 })
                 .filter(Result::is_ok)
                 .map(Result::unwrap)
@@ -594,7 +507,7 @@ enum Scheme {
 impl Types for Scheme {
     fn apply_subst(&self, s: &Subst) -> Self {
         match self {
-            Scheme::Forall(ks, qt) => Scheme::Forall(ks.clone(), apply(s, qt)),
+            Scheme::Forall(ks, qt) => Scheme::Forall(ks.clone(), s.apply(qt)),
         }
     }
 
@@ -614,7 +527,7 @@ pub fn quantify(vs: &[Tyvar], qt: &Qual<Type>) -> Scheme {
             .rev()
             .zip((0..n).rev().map(|k| Type::TGen(k))),
     );
-    Scheme::Forall(ks, apply(&s, qt))
+    Scheme::Forall(ks, s.apply(qt))
 }
 
 pub fn to_scheme(t: Type) -> Scheme {
@@ -631,7 +544,7 @@ impl Types for Assump {
     fn apply_subst(&self, s: &Subst) -> Self {
         Assump {
             i: self.i.clone(),
-            sc: apply(s, &self.sc),
+            sc: s.apply(&self.sc),
         }
     }
 
@@ -664,7 +577,7 @@ impl TI {
     }
 
     pub fn unify(&mut self, t1: &Type, t2: &Type) -> Result<()> {
-        let u = mgu(&apply(&self.subst, t1), &apply(&self.subst, t2))?;
+        let u = mgu(&self.subst.apply(t1), &self.subst.apply(t2))?;
         Ok(self.ext_subst(u))
     }
 
@@ -1049,15 +962,16 @@ fn ti_expl(
     ce: &ClassEnv,
     ass: &[Assump],
     Expl(i, sc, alts): &Expl,
-) -> Result<(Vec<Pred>)> {
+) -> Result<Vec<Pred>> {
     let Qual(qs, t) = ti.fresh_inst(sc);
     let ps = ti_alts(ti, ce, ass, alts, &t)?;
     let s = &ti.subst;
-    let qs_ = apply(s, &qs);
-    let t_ = apply(s, &t);
-    let fs = apply(s, ass).tv();
+    let qs_ = s.apply(&qs);
+    let t_ = s.apply(&t);
+    let fs = s.apply(ass).tv();
     let gs = list_diff(t_.tv(), fs.clone());
-    let ps_: Vec<_> = apply(s, &ps)
+    let ps_: Vec<_> = s
+        .apply(&ps)
         .into_iter()
         .filter(|p| !ce.entail(&qs_, p))
         .collect();
@@ -1107,9 +1021,9 @@ fn ti_impls(
         .map(|(a, t)| ti_alts(ti, ce, &as_, a, t))
         .collect::<Result<Vec<_>>>()?;
     let s = &ti.subst;
-    let ps_ = apply(s, &pss.into_iter().flatten().collect::<Vec<_>>());
-    let ts_ = apply(s, &ts);
-    let fs = apply(s, ass).tv();
+    let ps_ = s.apply(&pss.into_iter().flatten().collect::<Vec<_>>());
+    let ts_ = s.apply(&ts);
+    let fs = s.apply(ass).tv();
     let vss = || ts_.iter().map(Types::tv);
     let (mut ds, rs) = split(ce, &fs, &vss().rfold(vec![], list_intersect), &ps_)?;
     let gs = list_diff(vss().rfold(vec![], list_union), fs);
@@ -1191,9 +1105,9 @@ fn ti_program(ce: &ClassEnv, ass: Vec<Assump>, Program(bgs): &Program) -> Result
     let mut ti = TI::new();
     let (ps, as_) = ti_seq(ti_bindgroup, &mut ti, ce, ass, bgs)?;
     let s = &ti.subst;
-    let rs = ce.reduce(&apply(s, &ps))?;
+    let rs = ce.reduce(&s.apply(&ps))?;
     let s_ = default_subst(ce, vec![], &rs)?;
-    Ok(apply(&s_.compose(s), &as_))
+    Ok(s_.compose(s).apply(&as_))
 }
 
 // ============================================
