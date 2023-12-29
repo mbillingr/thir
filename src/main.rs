@@ -14,6 +14,7 @@ macro_rules! list {
     }};
 }
 
+mod assumptions;
 mod classes;
 mod kinds;
 mod predicates;
@@ -24,6 +25,7 @@ mod substitutions;
 mod types;
 mod unification;
 
+use crate::assumptions::Assump;
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::{HasKind, Kind};
 use crate::predicates::{match_pred, mgu_pred};
@@ -134,31 +136,6 @@ pub fn quantify(vs: &[Tyvar], qt: &Qual<Type>) -> Scheme {
 
 pub fn to_scheme(t: Type) -> Scheme {
     Scheme::Forall(List::Nil, Qual(vec![], t))
-}
-
-#[derive(Clone)]
-struct Assump {
-    i: Id,
-    sc: Scheme,
-}
-
-impl Debug for Assump {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} :>: {:?}", self.i, self.sc)
-    }
-}
-
-impl Types for Assump {
-    fn apply_subst(&self, s: &Subst) -> Self {
-        Assump {
-            i: self.i.clone(),
-            sc: s.apply(&self.sc),
-        }
-    }
-
-    fn tv(&self) -> Vec<Tyvar> {
-        self.sc.tv()
-    }
 }
 
 fn find<'a>(i: &Id, ass: impl IntoIterator<Item = &'a Assump>) -> Result<&'a Scheme> {
