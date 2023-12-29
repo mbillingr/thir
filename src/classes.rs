@@ -9,8 +9,11 @@ use std::rc::Rc;
 #[derive(Debug, Clone)]
 struct Class(Rc<Vec<Id>>, List<Inst>);
 
+/// An instance is a type that implements a certain class (interface)
 type Inst = Qual<Pred>;
 
+/// The class environment captures information about defined classes and instances
+/// in a given program.
 pub struct ClassEnv {
     classes: Rc<dyn Fn(&Id) -> crate::Result<Class>>,
     defaults: List<Type>,
@@ -26,22 +29,27 @@ impl Default for ClassEnv {
 }
 
 impl ClassEnv {
+    /// get super classes for a defined class
     pub fn supers(&self, name: &Id) -> Rc<Vec<Id>> {
         (self.classes)(name).unwrap().0
     }
 
+    /// get instances for a defined class
     pub fn insts(&self, name: &Id) -> List<Inst> {
         (self.classes)(name).unwrap().1
     }
 
+    /// iterate over defaultable types
     pub fn defaults(&self) -> impl Iterator<Item = &Type> {
         self.defaults.iter()
     }
 
+    /// test if a class is defined
     pub fn is_defined(&self, name: &Id) -> bool {
         (self.classes)(name).is_ok()
     }
 
+    /// add a new or updated class definition
     pub fn modify(&self, name: Id, cls: Class) -> Self {
         let next = self.classes.clone();
         ClassEnv {
@@ -156,15 +164,15 @@ impl EnvTransformer {
     pub fn add_inst(ps: Vec<Pred>, p: Pred) -> Self {
         EnvTransformer(Rc::new(move |ce| match &p {
             Pred::IsIn(i, _) => {
-                let its = ce.insts(&i);
-                let mut qs = its.iter().map(|Qual(_, q)| q);
-                let c = Class(ce.supers(i), its.cons(Qual(ps.clone(), p.clone())));
                 if !ce.is_defined(&i) {
                     Err("no class for instance")?
                 }
+                let its = ce.insts(&i);
+                let mut qs = its.iter().map(|Qual(_, q)| q);
                 if qs.any(|q| overlap(&p, q)) {
                     Err("overlapping instance")?
                 }
+                let c = Class(ce.supers(i), its.cons(Qual(ps.clone(), p.clone())));
                 Ok(ce.modify(i.clone(), c))
             }
         }))

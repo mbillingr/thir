@@ -18,6 +18,7 @@ mod classes;
 mod kinds;
 mod predicates;
 mod qualified;
+mod scheme;
 mod specifics;
 mod substitutions;
 mod types;
@@ -27,6 +28,7 @@ use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::{HasKind, Kind};
 use crate::predicates::{match_pred, mgu_pred};
 use crate::qualified::Qual;
+use crate::scheme::Scheme;
 use crate::specifics::{add_core_classes, add_num_classes};
 use crate::substitutions::{Subst, Types};
 use crate::types::{Type, Tyvar};
@@ -116,25 +118,6 @@ fn eq_intersect<T: PartialEq>(a: Vec<T>, b: Vec<T>) -> Vec<T> {
         }
     }
     out
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum Scheme {
-    Forall(List<Kind>, Qual<Type>),
-}
-
-impl Types for Scheme {
-    fn apply_subst(&self, s: &Subst) -> Self {
-        match self {
-            Scheme::Forall(ks, qt) => Scheme::Forall(ks.clone(), s.apply(qt)),
-        }
-    }
-
-    fn tv(&self) -> Vec<Tyvar> {
-        match self {
-            Scheme::Forall(_, qt) => qt.tv(),
-        }
-    }
 }
 
 pub fn quantify(vs: &[Tyvar], qt: &Qual<Type>) -> Scheme {
