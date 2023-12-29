@@ -69,6 +69,11 @@ fn main() {
                 ),
                 vec![Alt(vec![Pat::PVar("x".into())], Expr::Var("x".into()))],
             ),
+            /*Expl(
+                "a-const".into(),
+                Scheme::Forall(list![], Qual(vec![], Type::t_int())),
+                vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
+            ),*/
         ],
         vec![vec![
             // todo: why do the implicits (in particular, the constant) result in generic types?
