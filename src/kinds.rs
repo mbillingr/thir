@@ -15,9 +15,12 @@ pub enum Kind {
     Kfun(Rc<(Kind, Kind)>),
 }
 
-
 impl Kind {
     pub fn kfun(a: Kind, b: Kind) -> Kind {
         Kind::Kfun(Rc::new((a, b)))
     }
+}
+
+pub trait HasKind {
+    fn kind(&self) -> crate::Result<&Kind>;
 }

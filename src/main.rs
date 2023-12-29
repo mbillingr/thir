@@ -5,11 +5,11 @@ mod kinds;
 mod types;
 mod types_specific;
 
+use crate::kinds::Kind;
+use crate::types::{Tycon, Type, Tyvar};
 use crate::Pred::IsIn;
 use std::iter::once;
 use std::rc::Rc;
-use crate::kinds::Kind;
-use crate::types::{Tycon, Type, Tyvar};
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -84,37 +84,6 @@ type Id = String;
 
 fn enum_id(n: Int) -> Id {
     format!("v{n}")
-}
-
-
-trait HasKind {
-    fn kind(&self) -> Result<&Kind>;
-}
-
-impl HasKind for Tyvar {
-    fn kind(&self) -> Result<&Kind> {
-        Ok(&self.1)
-    }
-}
-
-impl HasKind for Tycon {
-    fn kind(&self) -> Result<&Kind> {
-        Ok(&self.1)
-    }
-}
-
-impl HasKind for Type {
-    fn kind(&self) -> Result<&Kind> {
-        match self {
-            Type::TCon(tc) => tc.kind(),
-            Type::TVar(u) => u.kind(),
-            Type::TApp(app) => match app.0.kind()? {
-                Kind::Kfun(kf) => Ok(&kf.1),
-                _ => Err("Invalid Kind in TApp")?,
-            },
-            Type::TGen(_) => panic!("Don't know what to do :(   (maybe ignore somehow?)"),
-        }
-    }
 }
 
 #[derive(Clone, Debug)]

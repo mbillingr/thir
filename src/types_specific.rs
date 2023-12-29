@@ -28,6 +28,11 @@ impl Type {
         Type::TCon(Tycon("Integer".into(), Kind::Star))
     }
 
+    /// construct the float type
+    pub fn t_float() -> Self {
+        Type::TCon(Tycon("Float".into(), Kind::Star))
+    }
+
     /// construct the double type
     pub fn t_double() -> Self {
         Type::TCon(Tycon("Double".into(), Kind::Star))
