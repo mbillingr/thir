@@ -2,8 +2,8 @@
 Substitutions associate type variables with types.
 !*/
 
-use crate::eq_intersect;
 use crate::types::{Type, Tyvar};
+use crate::{eq_intersect, eq_union, List};
 use std::rc::Rc;
 
 /// A substitution that associates type variables with types.
@@ -115,6 +115,81 @@ pub trait Types<T: ?Sized = Self> {
 
     /// get type vars
     fn tv(&self) -> Vec<Tyvar>;
+}
+
+impl Types for Type {
+    fn apply_subst(&self, s: &Subst) -> Self {
+        match self {
+            Type::TVar(u) => match s.lookup(u) {
+                Some(t) => t.clone(),
+                None => Type::TVar(u.clone()),
+            },
+            Type::TApp(app) => Type::tapp(s.apply(&app.0), s.apply(&app.1)),
+            _ => self.clone(),
+        }
+    }
+
+    fn tv(&self) -> Vec<Tyvar> {
+        match self {
+            Type::TVar(u) => vec![u.clone()],
+            Type::TApp(app) => eq_union(app.0.tv(), app.1.tv()),
+            _ => vec![],
+        }
+    }
+}
+
+impl<T: Types> Types for Vec<T> {
+    fn apply_subst(&self, s: &Subst) -> Self {
+        self.iter().map(|x| s.apply(x)).collect()
+    }
+
+    fn tv(&self) -> Vec<Tyvar> {
+        let mut tvs = vec![];
+        for x in self {
+            for u in x.tv() {
+                if !tvs.contains(&u) {
+                    tvs.push(u)
+                }
+            }
+        }
+        tvs
+    }
+}
+
+impl<T: Types> Types<Vec<T>> for [T] {
+    fn apply_subst(&self, s: &Subst) -> Vec<T> {
+        self.iter().map(|x| s.apply(x)).collect()
+    }
+
+    fn tv(&self) -> Vec<Tyvar> {
+        let mut tvs = vec![];
+        for x in self {
+            for u in x.tv() {
+                if !tvs.contains(&u) {
+                    tvs.push(u)
+                }
+            }
+        }
+        tvs
+    }
+}
+
+impl<T: Types> Types for List<T> {
+    fn apply_subst(&self, s: &Subst) -> Self {
+        self.iter().map(|x| s.apply(x)).collect()
+    }
+
+    fn tv(&self) -> Vec<Tyvar> {
+        let mut tvs = vec![];
+        for x in self {
+            for u in x.tv() {
+                if !tvs.contains(&u) {
+                    tvs.push(u)
+                }
+            }
+        }
+        tvs
+    }
 }
 
 #[cfg(test)]
