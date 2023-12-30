@@ -8,7 +8,7 @@ use crate::scheme::Scheme;
 use crate::substitutions::Types;
 use crate::type_inference::TI;
 use crate::types::{Type, Tyvar};
-use crate::{default_subst, defaulted_preds, find, quantify, to_scheme, Id, Int};
+use crate::{default_subst, defaulted_preds, find, Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 
@@ -51,7 +51,7 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
                 vec![],
                 vec![Assump {
                     i: i.clone(),
-                    sc: to_scheme(v.clone()),
+                    sc: v.clone().to_scheme(),
                 }],
                 v,
             ))
@@ -68,7 +68,7 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
             // todo: does order of assumptions matter? the paper conses it to the front.
             as_.push(Assump {
                 i: i.clone(),
-                sc: to_scheme(t.clone()),
+                sc: t.clone().to_scheme(),
             });
 
             Ok((ps, as_, t))
@@ -85,7 +85,7 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
                 vec![Pred::IsIn("Integral".into(), t.clone())],
                 vec![Assump {
                     i: i.clone(),
-                    sc: to_scheme(t.clone()),
+                    sc: t.clone().to_scheme(),
                 }],
                 t,
             ))
@@ -241,7 +241,7 @@ fn ti_expl(
         .into_iter()
         .filter(|p| !ce.entail(&qs_, p))
         .collect();
-    let sc_ = quantify(&gs, &Qual(qs_, t_));
+    let sc_ = Scheme::quantify(&gs, &Qual(qs_, t_));
     let (ds, rs) = split(ce, &fs, &gs, &ps_)?;
 
     if sc != &sc_ {
@@ -275,7 +275,7 @@ fn ti_impls(
 ) -> crate::Result<(Vec<Pred>, Vec<Assump>)> {
     let ts: Vec<_> = bs.iter().map(|_| ti.new_tvar(Kind::Star)).collect();
     let is = || bs.iter().map(|Impl(i, _)| i.clone());
-    let scs = ts.iter().cloned().map(to_scheme);
+    let scs = ts.iter().cloned().map(Type::to_scheme);
     let as_: Vec<_> = is()
         .zip(scs)
         .map(|(i, sc)| Assump { i, sc })
@@ -295,11 +295,15 @@ fn ti_impls(
     let gs = eq_diff(rfold1(vss(), eq_union), fs);
     if restricted(bs) {
         let gs_ = eq_diff(gs, rs.tv());
-        let scs_ = ts_.into_iter().map(|t| quantify(&gs_, &Qual(vec![], t)));
+        let scs_ = ts_
+            .into_iter()
+            .map(|t| Scheme::quantify(&gs_, &Qual(vec![], t)));
         ds.extend(rs);
         Ok((ds, is().zip(scs_).map(|(i, sc)| Assump { i, sc }).collect()))
     } else {
-        let scs_ = ts_.into_iter().map(|t| quantify(&gs, &Qual(rs.clone(), t)));
+        let scs_ = ts_
+            .into_iter()
+            .map(|t| Scheme::quantify(&gs, &Qual(rs.clone(), t)));
         Ok((ds, is().zip(scs_).map(|(i, sc)| Assump { i, sc }).collect()))
     }
 }

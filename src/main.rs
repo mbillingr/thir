@@ -104,22 +104,6 @@ fn enum_id(n: Int) -> Id {
     format!("v{n}")
 }
 
-pub fn quantify(vs: &[Tyvar], qt: &Qual<Type>) -> Scheme {
-    let vs_: Vec<_> = qt.tv().into_iter().filter(|v| vs.contains(v)).collect();
-    let ks = vs_.iter().map(|v| v.kind().unwrap().clone()).collect();
-    let n = vs_.len() as Int;
-    let s = Subst::from_rev_iter(
-        vs_.into_iter()
-            .rev()
-            .zip((0..n).rev().map(|k| Type::TGen(k))),
-    );
-    Scheme::Forall(ks, s.apply(qt))
-}
-
-pub fn to_scheme(t: Type) -> Scheme {
-    Scheme::Forall(List::Nil, Qual(vec![], t))
-}
-
 fn find<'a>(i: &Id, ass: impl IntoIterator<Item = &'a Assump>) -> Result<&'a Scheme> {
     for a in ass {
         if &a.i == i {
