@@ -5,13 +5,9 @@
 macro_rules! list {
     () => { List::Nil };
 
-    ($($x:expr),*) => {{
-        let mut lst = List::Nil;
-        $(
-            lst = lst.cons($x);
-        )*
-        lst
-    }};
+    ($x:expr $(, $r:expr)*) => {
+        list![$($r),*].cons($x)
+    };
 }
 
 mod assumptions;

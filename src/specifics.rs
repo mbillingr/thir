@@ -111,4 +111,5 @@ pub fn add_num_classes() -> EnvTransformer {
         ));
 
     et.compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_int())))
+        .compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_double())))
 }
