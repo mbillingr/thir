@@ -1,8 +1,8 @@
 use crate::kinds::Kind;
+use crate::lists::List;
 use crate::qualified::Qual;
 use crate::substitutions::{Subst, Types};
 use crate::types::{Type, Tyvar};
-use crate::List;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Scheme {

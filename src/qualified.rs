@@ -1,4 +1,4 @@
-use crate::eq_union;
+use crate::lists::eq_union;
 use crate::predicates::Pred;
 use crate::substitutions::{Subst, Types};
 use crate::types::Tyvar;

@@ -1,16 +1,14 @@
 use crate::assumptions::Assump;
 use crate::classes::ClassEnv;
 use crate::kinds::Kind;
+use crate::lists::{list_diff, list_intersect, list_union, rfold1};
 use crate::predicates::Pred;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
 use crate::substitutions::Types;
 use crate::type_inference::TI;
 use crate::types::{Type, Tyvar};
-use crate::{
-    default_subst, defaulted_preds, find, list_diff, list_intersect, list_union, quantify, rfold1,
-    to_scheme, Id, Int,
-};
+use crate::{default_subst, defaulted_preds, find, quantify, to_scheme, Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 

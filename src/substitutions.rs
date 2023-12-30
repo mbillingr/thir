@@ -2,8 +2,8 @@
 Substitutions associate type variables with types.
 !*/
 
+use crate::lists::{eq_intersect, eq_union, List};
 use crate::types::{Type, Tyvar};
-use crate::{eq_intersect, eq_union, List};
 use std::rc::Rc;
 
 /// A substitution that associates type variables with types.
