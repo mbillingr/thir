@@ -1,3 +1,4 @@
+use crate::ambiguity::{default_subst, defaulted_preds};
 use crate::assumptions::{find, Assump};
 use crate::classes::ClassEnv;
 use crate::kinds::Kind;
@@ -8,7 +9,7 @@ use crate::scheme::Scheme;
 use crate::substitutions::Types;
 use crate::type_inference::TI;
 use crate::types::{Type, Tyvar};
-use crate::{default_subst, defaulted_preds, Id, Int};
+use crate::{Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 
