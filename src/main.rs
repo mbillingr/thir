@@ -104,15 +104,6 @@ fn enum_id(n: Int) -> Id {
     format!("v{n}")
 }
 
-fn find<'a>(i: &Id, ass: impl IntoIterator<Item = &'a Assump>) -> Result<&'a Scheme> {
-    for a in ass {
-        if &a.i == i {
-            return Ok(&a.sc);
-        }
-    }
-    Err(format!("unbound identifier: {i}"))
-}
-
 struct Ambiguity(Tyvar, Vec<Pred>);
 
 fn ambiguities(ce: &ClassEnv, vs: Vec<Tyvar>, ps: &[Pred]) -> Vec<Ambiguity> {

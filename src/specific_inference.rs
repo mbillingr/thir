@@ -1,4 +1,4 @@
-use crate::assumptions::Assump;
+use crate::assumptions::{find, Assump};
 use crate::classes::ClassEnv;
 use crate::kinds::Kind;
 use crate::lists::{eq_diff, eq_intersect, eq_union, rfold1};
@@ -8,7 +8,7 @@ use crate::scheme::Scheme;
 use crate::substitutions::Types;
 use crate::type_inference::TI;
 use crate::types::{Type, Tyvar};
-use crate::{default_subst, defaulted_preds, find, Id, Int};
+use crate::{default_subst, defaulted_preds, Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 

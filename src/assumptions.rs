@@ -30,3 +30,12 @@ impl Types for Assump {
         self.sc.tv()
     }
 }
+
+pub fn find<'a>(i: &Id, ass: impl IntoIterator<Item = &'a Assump>) -> crate::Result<&'a Scheme> {
+    for a in ass {
+        if &a.i == i {
+            return Ok(&a.sc);
+        }
+    }
+    Err(format!("unbound identifier: {i}"))
+}
