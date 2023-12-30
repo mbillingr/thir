@@ -86,6 +86,14 @@ pub fn add_core_classes() -> EnvTransformer {
         .compose(ET::add_class("Enum".into(), vec![]))
         .compose(ET::add_class("Functor".into(), vec![]))
         .compose(ET::add_class("Monad".into(), vec![]))
+        .compose(ET::add_class("Mix".into(), vec![]))
+        .compose(ET::add_inst(
+            vec![],
+            IsIn(
+                "Mix".into(),
+                vec![Type::t_int(), Type::t_double(), Type::t_double()],
+            ),
+        ))
 }
 
 pub fn add_num_classes() -> EnvTransformer {
@@ -110,6 +118,12 @@ pub fn add_num_classes() -> EnvTransformer {
             vec!["RealFrac".into(), "Floating".into()],
         ));
 
-    et.compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_int())))
-        .compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_double())))
+    et.compose(ET::add_inst(
+        vec![],
+        IsIn("Num".into(), vec![Type::t_int()]),
+    ))
+    .compose(ET::add_inst(
+        vec![],
+        IsIn("Num".into(), vec![Type::t_double()]),
+    ))
 }

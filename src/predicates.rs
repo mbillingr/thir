@@ -6,8 +6,8 @@ use crate::Id;
 /// A predicate imposes constraints on types
 #[derive(Clone, Debug, PartialEq)]
 pub enum Pred {
-    /// Assert that the type (2nd field) is a member of class (1st field)  
-    IsIn(Id, Type),
+    /// Assert that the combination of types (2nd field) is a member of class (1st field)  
+    IsIn(Id, Vec<Type>),
 }
 
 impl Types for Pred {
@@ -37,26 +37,35 @@ impl Pred {
         }
 
         match self {
-            Pred::IsIn(_, t) => hnf(t),
+            Pred::IsIn(_, ts) => ts.iter().all(hnf),
         }
     }
 }
 
+// todo: I'm not sure if the merging/composition of the match/mgu is correct.
+
 pub fn mgu_pred(a: &Pred, b: &Pred) -> crate::Result<Subst> {
-    lift(mgu, a, b)
+    lift(mgu, |s1, s2| Ok(s2.compose(s1)), a, b)
 }
 
 pub fn match_pred(a: &Pred, b: &Pred) -> crate::Result<Subst> {
-    lift(matches, a, b)
+    lift(matches, Subst::merge, a, b)
 }
 
 fn lift(
     m: impl Fn(&Type, &Type) -> crate::Result<Subst>,
+    c: impl Fn(&Subst, &Subst) -> crate::Result<Subst>,
     a: &Pred,
     b: &Pred,
 ) -> crate::Result<Subst> {
     match (a, b) {
-        (Pred::IsIn(i1, t1), Pred::IsIn(i2, t2)) if i1 == i2 => m(t1, t2),
+        (Pred::IsIn(i1, ts1), Pred::IsIn(i2, ts2)) if i1 == i2 => {
+            let mut s = Subst::null_subst();
+            for (t1, t2) in ts1.iter().zip(ts2) {
+                s = c(&s, &m(t1, t2)?)?;
+            }
+            Ok(s)
+        }
         _ => Err("classes differ")?,
     }
 }

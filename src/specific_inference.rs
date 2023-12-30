@@ -26,11 +26,11 @@ fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
         Literal::Str(_) => Ok((vec![], Type::t_string())),
         Literal::Int(_) => {
             let v = ti.new_tvar(Kind::Star);
-            Ok((vec![Pred::IsIn("Num".into(), v.clone())], v))
+            Ok((vec![Pred::IsIn("Num".into(), vec![v.clone()])], v))
         }
         Literal::Rat(_) => {
             let v = ti.new_tvar(Kind::Star);
-            Ok((vec![Pred::IsIn("Fractional".into(), v.clone())], v))
+            Ok((vec![Pred::IsIn("Fractional".into(), vec![v.clone()])], v))
         }
     }
 }
@@ -83,7 +83,7 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
         Pat::PNpk(i, _) => {
             let t = ti.new_tvar(Kind::Star);
             Ok((
-                vec![Pred::IsIn("Integral".into(), t.clone())],
+                vec![Pred::IsIn("Integral".into(), vec![t.clone()])],
                 vec![Assump {
                     i: i.clone(),
                     sc: t.clone().to_scheme(),

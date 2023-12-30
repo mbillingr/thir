@@ -46,7 +46,7 @@ const STD_CLASSES: [&str; 17] = [
 
 fn candidates(ce: &ClassEnv, Ambiguity(v, qs): &Ambiguity) -> Vec<Type> {
     let is_ = || qs.iter().map(|Pred::IsIn(i, _)| i);
-    let ts_: Vec<_> = qs.iter().map(|Pred::IsIn(_, t)| t).collect();
+    let ts_: Vec<_> = qs.iter().flat_map(|Pred::IsIn(_, t)| t).collect();
 
     if !ts_
         .into_iter()
@@ -66,7 +66,7 @@ fn candidates(ce: &ClassEnv, Ambiguity(v, qs): &Ambiguity) -> Vec<Type> {
     let mut out = vec![];
     for t_ in ce.defaults() {
         if is_()
-            .map(|i| Pred::IsIn(i.clone(), t_.clone()))
+            .map(|i| Pred::IsIn(i.clone(), vec![t_.clone()]))
             .all(|p| ce.entail(&[], &p))
         {
             out.push(t_.clone());
