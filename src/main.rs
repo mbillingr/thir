@@ -57,20 +57,34 @@ fn main() {
                 ),
                 vec![Alt(vec![Pat::PWildcard], Expr::Lit(Literal::Int(0)))],
             ),
-            /*Expl(
-                "snd".into(),
+            Expl(
+                "fst".into(),
                 Scheme::Forall(
-                    list![Kind::Star],
+                    list![Kind::Star, Kind::Star],
                     Qual(
                         vec![],
-                        Type::func(Type::TGen(0), Type::func(Type::t_int(), Type::t_int())),
+                        Type::func(Type::TGen(0), Type::func(Type::TGen(1), Type::TGen(0))),
+                    ),
+                ),
+                vec![Alt(
+                    vec![Pat::PVar("x".into()), Pat::PWildcard],
+                    Expr::Var("x".into()),
+                )],
+            ),
+            Expl(
+                "snd".into(),
+                Scheme::Forall(
+                    list![Kind::Star, Kind::Star],
+                    Qual(
+                        vec![],
+                        Type::func(Type::TGen(0), Type::func(Type::TGen(1), Type::TGen(1))),
                     ),
                 ),
                 vec![Alt(
                     vec![Pat::PWildcard, Pat::PVar("x".into())],
                     Expr::Var("x".into()),
                 )],
-            ),*/
+            ),
             /*Expl(
                 "a-const".into(),
                 Scheme::Forall(list![], Qual(vec![], Type::t_int())),
