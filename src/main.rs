@@ -17,8 +17,10 @@ mod type_inference;
 mod types;
 mod unification;
 
+use crate::assumptions::Assump;
 use crate::classes::ClassEnv;
 use crate::kinds::Kind;
+use crate::predicates::Pred;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
 use crate::specific_inference::{
@@ -33,6 +35,18 @@ fn main() {
     let ce = ClassEnv::default();
     let ce = add_core_classes().apply(&ce).unwrap();
     let ce = add_num_classes().apply(&ce).unwrap();
+
+    // todo: these should be populated by class declarations
+    let initial_assumptions = vec![Assump {
+        i: "show".into(),
+        sc: Scheme::Forall(
+            list![Kind::Star],
+            Qual(
+                vec![Pred::IsIn("Show".into(), Type::TGen(0))],
+                Type::func(Type::TGen(0), Type::t_string()),
+            ),
+        ),
+    }];
 
     let prog = Program(vec![BindGroup(
         vec![
@@ -49,7 +63,7 @@ fn main() {
                 ),
                 vec![Alt(vec![Pat::PVar("x".into())], Expr::Var("x".into()))],
             ),*/
-            Expl(
+            /*Expl(
                 "ignore-arg".into(),
                 Scheme::Forall(
                     list![Kind::Star],
@@ -84,12 +98,20 @@ fn main() {
                     vec![Pat::PWildcard, Pat::PVar("x".into())],
                     Expr::Var("x".into()),
                 )],
-            ),
+            ),*/
             /*Expl(
                 "a-const".into(),
                 Scheme::Forall(list![], Qual(vec![], Type::t_int())),
                 vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
             ),*/
+            Expl(
+                "show-int".into(),
+                Scheme::Forall(
+                    list![],
+                    Qual(vec![], Type::func(Type::t_int(), Type::t_string())),
+                ),
+                vec![Alt(vec![], Expr::Var("show".into()))],
+            ),
         ],
         vec![/*vec![
             /*Impl(
@@ -119,7 +141,7 @@ fn main() {
         ]*/],
     )]);
 
-    let r = ti_program(&ce, vec![], &prog);
+    let r = ti_program(&ce, initial_assumptions, &prog);
     println!("{r:#?}")
 }
 
