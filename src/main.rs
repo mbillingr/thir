@@ -19,7 +19,7 @@ mod unification;
 use crate::assumptions::Assump;
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::{HasKind, Kind};
-use crate::lists::{list_diff, List};
+use crate::lists::{eq_diff, List};
 use crate::predicates::{match_pred, mgu_pred};
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
@@ -133,7 +133,7 @@ struct Ambiguity(Tyvar, Vec<Pred>);
 
 fn ambiguities(ce: &ClassEnv, vs: Vec<Tyvar>, ps: &[Pred]) -> Vec<Ambiguity> {
     let mut out = vec![];
-    for v in list_diff(ps.tv(), vs) {
+    for v in eq_diff(ps.tv(), vs) {
         let ps_ = ps.iter().filter(|p| p.tv().contains(&v)).cloned().collect();
         out.push(Ambiguity(v, ps_))
     }

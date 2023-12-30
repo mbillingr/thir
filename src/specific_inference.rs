@@ -1,7 +1,7 @@
 use crate::assumptions::Assump;
 use crate::classes::ClassEnv;
 use crate::kinds::Kind;
-use crate::lists::{list_diff, list_intersect, list_union, rfold1};
+use crate::lists::{eq_diff, eq_intersect, eq_union, rfold1};
 use crate::predicates::Pred;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
@@ -217,7 +217,7 @@ fn split(
     let mut fsgs = vec![];
     fsgs.extend(fs.iter().chain(gs.iter()).cloned());
     let rs_ = defaulted_preds(ce, fsgs, &rs)?;
-    Ok((ds, list_diff(rs, rs_)))
+    Ok((ds, eq_diff(rs, rs_)))
 }
 
 /// Explicitly typed binding
@@ -235,7 +235,7 @@ fn ti_expl(
     let qs_ = s.apply(&qs);
     let t_ = s.apply(&t);
     let fs = s.apply(ass).tv();
-    let gs = list_diff(t_.tv(), fs.clone());
+    let gs = eq_diff(t_.tv(), fs.clone());
     let ps_: Vec<_> = s
         .apply(&ps)
         .into_iter()
@@ -291,10 +291,10 @@ fn ti_impls(
     let ts_ = s.apply(&ts);
     let fs = s.apply(ass).tv();
     let vss = || ts_.iter().map(Types::tv);
-    let (mut ds, rs) = split(ce, &fs, &rfold1(vss(), list_intersect), &ps_)?;
-    let gs = list_diff(rfold1(vss(), list_union), fs);
+    let (mut ds, rs) = split(ce, &fs, &rfold1(vss(), eq_intersect), &ps_)?;
+    let gs = eq_diff(rfold1(vss(), eq_union), fs);
     if restricted(bs) {
-        let gs_ = list_diff(gs, rs.tv());
+        let gs_ = eq_diff(gs, rs.tv());
         let scs_ = ts_.into_iter().map(|t| quantify(&gs_, &Qual(vec![], t)));
         ds.extend(rs);
         Ok((ds, is().zip(scs_).map(|(i, sc)| Assump { i, sc }).collect()))

@@ -9,25 +9,6 @@ macro_rules! list {
     };
 }
 
-pub fn eq_union<T: PartialEq>(mut a: Vec<T>, b: Vec<T>) -> Vec<T> {
-    for x in b {
-        if !a.contains(&x) {
-            a.push(x)
-        }
-    }
-    a
-}
-
-pub fn eq_intersect<T: PartialEq>(a: Vec<T>, b: Vec<T>) -> Vec<T> {
-    let mut out = vec![];
-    for x in b {
-        if a.contains(&x) {
-            out.push(x)
-        }
-    }
-    out
-}
-
 pub fn rfold1<T, I: DoubleEndedIterator<Item = T>>(
     it: impl IntoIterator<Item = T, IntoIter = I>,
     f: impl Fn(T, T) -> T,
@@ -40,7 +21,7 @@ pub fn rfold1<T, I: DoubleEndedIterator<Item = T>>(
     res
 }
 
-pub fn list_diff<T: PartialEq>(a: impl IntoIterator<Item = T>, mut b: Vec<T>) -> Vec<T> {
+pub fn eq_diff<T: PartialEq>(a: impl IntoIterator<Item = T>, mut b: Vec<T>) -> Vec<T> {
     let mut out = vec![];
     for x in a {
         if let Some(i) = b.iter().position(|y| &x == y) {
@@ -52,7 +33,7 @@ pub fn list_diff<T: PartialEq>(a: impl IntoIterator<Item = T>, mut b: Vec<T>) ->
     out
 }
 
-pub fn list_union<T: PartialEq>(mut a: Vec<T>, b: impl IntoIterator<Item = T>) -> Vec<T> {
+pub fn eq_union<T: PartialEq>(mut a: Vec<T>, b: impl IntoIterator<Item = T>) -> Vec<T> {
     for x in b {
         if !a.contains(&x) {
             a.push(x)
@@ -61,7 +42,7 @@ pub fn list_union<T: PartialEq>(mut a: Vec<T>, b: impl IntoIterator<Item = T>) -
     a
 }
 
-pub fn list_intersect<T: PartialEq>(a: impl IntoIterator<Item = T>, mut b: Vec<T>) -> Vec<T> {
+pub fn eq_intersect<T: PartialEq>(a: impl IntoIterator<Item = T>, mut b: Vec<T>) -> Vec<T> {
     a.into_iter().filter(|x| b.contains(x)).collect()
 }
 

@@ -63,7 +63,9 @@ impl Subst {
     }
 
     pub fn merge(&self, other: &Self) -> crate::Result<Self> {
-        for v in eq_intersect(self.keys(), other.keys()) {
+        let a = self.keys();
+        let b = other.keys();
+        for v in eq_intersect(a, b) {
             if self.apply(&Type::TVar(v.clone())) != other.apply(&Type::TVar(v)) {
                 Err("merge fails")?
             }
