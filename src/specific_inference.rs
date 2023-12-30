@@ -13,6 +13,7 @@ use crate::{Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 
+#[derive(Clone, Debug)]
 pub enum Literal {
     Int(i64),
     Char(char),
@@ -35,6 +36,7 @@ fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum Pat {
     PVar(Id),
     PWildcard,
@@ -125,12 +127,14 @@ fn ti_pats(ti: &mut TI, pats: &[Pat]) -> crate::Result<(Vec<Pred>, Vec<Assump>, 
     Ok((ps, as_, ts))
 }
 
+#[derive(Clone, Debug)]
 pub enum Expr {
     Var(Id),
     Lit(Literal),
     Const(Assump),
     App(Rc<Expr>, Rc<Expr>),
     Let(BindGroup, Rc<Expr>),
+    Annotate(Scheme, Rc<Expr>),
 }
 
 fn ti_expr(
@@ -138,40 +142,48 @@ fn ti_expr(
     ce: &ClassEnv,
     ass: &[Assump],
     expr: &Expr,
-) -> crate::Result<(Vec<Pred>, Type)> {
+) -> crate::Result<(Expr, Vec<Pred>, Type)> {
     match expr {
         Expr::Var(i) => {
             let sc = find(i, ass)?;
             let Qual(ps, t) = ti.fresh_inst(sc);
-            Ok((ps, t))
+            Ok((Expr::Var(i.clone()), ps, t))
         }
 
         Expr::Const(Assump { sc, .. }) => {
             let Qual(ps, t) = ti.fresh_inst(sc);
-            Ok((ps, t))
+            Ok((expr.clone(), ps, t))
         }
 
-        Expr::Lit(li) => ti_lit(ti, li),
+        Expr::Lit(li) => {
+            let (ps, t) = ti_lit(ti, li)?;
+            Ok((expr.clone(), ps, t))
+        }
 
         Expr::App(e, f) => {
-            let (mut ps, te) = ti_expr(ti, ce, ass, e)?;
-            let (qs, tf) = ti_expr(ti, ce, ass, f)?;
+            let (f_, mut ps, te) = ti_expr(ti, ce, ass, e)?;
+            let (a_, qs, tf) = ti_expr(ti, ce, ass, f)?;
             let t = ti.new_tvar(Kind::Star);
             ti.unify(&Type::func(tf, t.clone()), &te)?;
             ps.extend(qs);
-            Ok((ps, t))
+            Ok((Expr::App(f_.into(), a_.into()), ps, t))
         }
 
         Expr::Let(bg, e) => {
-            let (mut ps, mut ass_) = ti_bindgroup(ti, ce, ass, bg)?;
+            let (bg_, mut ps, mut ass_) = ti_bindgroup(ti, ce, ass, bg)?;
             ass_.extend(ass.iter().cloned());
-            let (qs, t) = ti_expr(ti, ce, &ass_, e)?;
+            let (e_, qs, t) = ti_expr(ti, ce, &ass_, e)?;
             ps.extend(qs);
-            Ok((ps, t))
+            Ok((Expr::Let(bg_, e_.into()), ps, t))
+        }
+
+        Expr::Annotate(_, _) => {
+            todo!("Can't check annotated expressions, yet")
         }
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Alt(pub Vec<Pat>, pub Expr);
 
 fn ti_alt(
@@ -179,14 +191,14 @@ fn ti_alt(
     ce: &ClassEnv,
     ass: &[Assump],
     Alt(pats, e): &Alt,
-) -> crate::Result<(Vec<Pred>, Type)> {
+) -> crate::Result<(Alt, Vec<Pred>, Type)> {
     let (mut ps, mut ass_, ts) = ti_pats(ti, pats)?;
     ass_.extend(ass.iter().cloned());
-    let (qs, t) = ti_expr(ti, ce, &ass_, e)?;
+    let (e_, qs, t) = ti_expr(ti, ce, &ass_, e)?;
     ps.extend(qs);
     println!("{:?}", ts);
     let f = ts.into_iter().rfold(t, |acc, t_| Type::func(t_, acc));
-    Ok((ps, f))
+    Ok((Alt(pats.clone(), e_), ps, f))
 }
 
 fn ti_alts(
@@ -195,17 +207,19 @@ fn ti_alts(
     ass: &[Assump],
     alts: &[Alt],
     t: &Type,
-) -> crate::Result<Vec<Pred>> {
+) -> crate::Result<(Vec<Alt>, Vec<Pred>)> {
     let psts = alts
         .iter()
         .map(|a| ti_alt(ti, ce, ass, a))
         .collect::<crate::Result<Vec<_>>>()?;
+    let mut alts_ = Vec::with_capacity(psts.len());
     let mut ps = vec![];
-    for (ps_, t_) in psts {
+    for (a_, ps_, t_) in psts {
+        alts_.push(a_);
         ti.unify(t, &t_)?;
         ps.extend(ps_);
     }
-    Ok(ps)
+    Ok((alts_, ps))
 }
 
 fn split(
@@ -225,16 +239,17 @@ fn split(
 }
 
 /// Explicitly typed binding
+#[derive(Clone, Debug)]
 pub struct Expl(pub Id, pub Scheme, pub Vec<Alt>);
 
 fn ti_expl(
     ti: &mut TI,
     ce: &ClassEnv,
     ass: &[Assump],
-    Expl(_, sc, alts): &Expl,
-) -> crate::Result<Vec<Pred>> {
+    Expl(id, sc, alts): &Expl,
+) -> crate::Result<(Expl, Vec<Pred>)> {
     let Qual(qs, t) = ti.fresh_inst(sc);
-    let ps = ti_alts(ti, ce, ass, alts, &t)?;
+    let (alts_, ps) = ti_alts(ti, ce, ass, alts, &t)?;
     let s = &ti.get_subst();
     let qs_ = s.apply(&qs);
     let t_ = s.apply(&t);
@@ -256,10 +271,13 @@ fn ti_expl(
         Err("context too weak")?;
     }
 
-    Ok(ds)
+    let expl_ = Expl(id.clone(), sc.clone(), alts_);
+
+    Ok((expl_, ds))
 }
 
 /// Implicitly typed binding
+#[derive(Clone, Debug)]
 pub struct Impl(pub Id, pub Vec<Alt>);
 
 fn restricted(bs: &[Impl]) -> bool {
@@ -276,7 +294,7 @@ fn ti_impls(
     ce: &ClassEnv,
     ass: &[Assump],
     bs: &Vec<Impl>,
-) -> crate::Result<(Vec<Pred>, Vec<Assump>)> {
+) -> crate::Result<(Vec<Impl>, Vec<Pred>, Vec<Assump>)> {
     let ts: Vec<_> = bs.iter().map(|_| ti.new_tvar(Kind::Star)).collect();
     let is = || bs.iter().map(|Impl(i, _)| i.clone());
     let scs = ts.iter().cloned().map(Type::to_scheme);
@@ -286,10 +304,18 @@ fn ti_impls(
         .chain(ass.iter().cloned())
         .collect();
     let altss = bs.iter().map(|Impl(_, alts)| alts);
-    let pss = altss
+
+    let a_pss = altss
         .zip(&ts)
         .map(|(a, t)| ti_alts(ti, ce, &as_, a, t))
         .collect::<crate::Result<Vec<_>>>()?;
+    let mut altss_ = Vec::with_capacity(a_pss.len());
+    let mut pss = Vec::with_capacity(a_pss.len());
+    for (a_, p_) in a_pss {
+        altss_.push(a_);
+        pss.push(p_);
+    }
+
     let s = &ti.get_subst();
     let ps_ = s.apply(&pss.into_iter().flatten().collect::<Vec<_>>());
     let ts_ = s.apply(&ts);
@@ -297,21 +323,35 @@ fn ti_impls(
     let vss = || ts_.iter().map(Types::tv);
     let (mut ds, rs) = split(ce, &fs, &rfold1(vss(), eq_intersect), &ps_)?;
     let gs = eq_diff(rfold1(vss(), eq_union), fs);
+    let bs_ = bs
+        .iter()
+        .zip(altss_)
+        .map(|(Impl(id, _), alts_)| Impl(id.clone(), alts_))
+        .collect();
     if restricted(bs) {
         let gs_ = eq_diff(gs, rs.tv());
         let scs_ = ts_
             .into_iter()
             .map(|t| Scheme::quantify(&gs_, &Qual(vec![], t)));
         ds.extend(rs);
-        Ok((ds, is().zip(scs_).map(|(i, sc)| Assump { i, sc }).collect()))
+        Ok((
+            bs_,
+            ds,
+            is().zip(scs_).map(|(i, sc)| Assump { i, sc }).collect(),
+        ))
     } else {
         let scs_ = ts_
             .into_iter()
             .map(|t| Scheme::quantify(&gs, &Qual(rs.clone(), t)));
-        Ok((ds, is().zip(scs_).map(|(i, sc)| Assump { i, sc }).collect()))
+        Ok((
+            bs_,
+            ds,
+            is().zip(scs_).map(|(i, sc)| Assump { i, sc }).collect(),
+        ))
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct BindGroup(pub Vec<Expl>, pub Vec<Vec<Impl>>);
 
 fn ti_bindgroup(
@@ -319,7 +359,7 @@ fn ti_bindgroup(
     ce: &ClassEnv,
     ass: &[Assump],
     BindGroup(es, iss): &BindGroup,
-) -> crate::Result<(Vec<Pred>, Vec<Assump>)> {
+) -> crate::Result<(BindGroup, Vec<Pred>, Vec<Assump>)> {
     let as1: Vec<_> = es
         .iter()
         .map(|Expl(v, sc, _)| Assump {
@@ -331,7 +371,7 @@ fn ti_bindgroup(
     let mut as1_as = as1.clone();
     as1_as.extend(ass.to_vec());
 
-    let (ps, as2) = ti_seq(ti_impls, ti, ce, as1_as, iss)?;
+    let (iss_, ps, as2) = ti_seq(ti_impls, ti, ce, as1_as, iss)?;
 
     let mut as2_as1 = as2.clone();
     as2_as1.extend(as1);
@@ -339,53 +379,64 @@ fn ti_bindgroup(
     let mut as2_as1_as = as2_as1.clone();
     as2_as1_as.extend(ass.to_vec());
 
-    let qss = es
+    let es_qss = es
         .iter()
         .map(|e| ti_expl(ti, ce, &as2_as1_as, e))
         .collect::<crate::Result<Vec<_>>>()?;
 
-    Ok((once(ps).chain(qss).flatten().collect(), as2_as1))
+    let mut es_ = Vec::with_capacity(es_qss.len());
+    let mut qss = Vec::with_capacity(es_qss.len());
+    for (e, q) in es_qss {
+        es_.push(e);
+        qss.push(q);
+    }
+
+    let bg_ = BindGroup(es_, iss_);
+
+    Ok((bg_, once(ps).chain(qss).flatten().collect(), as2_as1))
 }
 
 fn ti_seq<T>(
-    inf: impl Fn(&mut TI, &ClassEnv, &[Assump], &T) -> crate::Result<(Vec<Pred>, Vec<Assump>)>,
+    inf: impl Fn(&mut TI, &ClassEnv, &[Assump], &T) -> crate::Result<(T, Vec<Pred>, Vec<Assump>)>,
     ti: &mut TI,
     ce: &ClassEnv,
     ass: Vec<Assump>,
     bss: &[T],
-) -> crate::Result<(Vec<Pred>, Vec<Assump>)> {
+) -> crate::Result<(Vec<T>, Vec<Pred>, Vec<Assump>)> {
     if bss.is_empty() {
-        return Ok((vec![], vec![]));
+        return Ok((vec![], vec![], vec![]));
     }
 
     let bs = &bss[0];
     let bss = &bss[1..];
 
-    let (mut ps, as_) = inf(ti, ce, &ass, bs)?;
+    let (bs_, mut ps, as_) = inf(ti, ce, &ass, bs)?;
 
     let mut as_as = as_.clone();
     as_as.extend(ass);
 
-    let (qs, mut as__) = ti_seq(inf, ti, ce, as_as, bss)?;
+    let (mut bss_, qs, mut as__) = ti_seq(inf, ti, ce, as_as, bss)?;
 
+    bss_.insert(0, bs_);
     ps.extend(qs);
     as__.extend(as_);
-    Ok((ps, as__))
+    Ok((bss_, ps, as__))
 }
 
+#[derive(Debug)]
 pub struct Program(pub Vec<BindGroup>);
 
 pub fn ti_program(
     ce: &ClassEnv,
     ass: Vec<Assump>,
     Program(bgs): &Program,
-) -> crate::Result<Vec<Assump>> {
+) -> crate::Result<(Program, Vec<Assump>)> {
     let mut ti = TI::new();
-    let (ps, as_) = ti_seq(ti_bindgroup, &mut ti, ce, ass, bgs)?;
+    let (bgs_, ps, as_) = ti_seq(ti_bindgroup, &mut ti, ce, ass, bgs)?;
     //println!("{:#?}", ps);
     //println!("{:#?}", as_);
     let s = &ti.get_subst();
     let rs = ce.reduce(&s.apply(&ps))?;
     let s_ = default_subst(ce, vec![], &rs)?;
-    Ok(s_.compose(s).apply(&as_))
+    Ok((Program(bgs_), s_.compose(s).apply(&as_)))
 }
