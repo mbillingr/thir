@@ -37,6 +37,7 @@ fn main() {
     let ce = add_num_classes().apply(&ce).unwrap();
 
     // todo: these should be populated by class declarations
+    //       actually, they should be accessed using Expr::Const
     let initial_assumptions = vec![Assump {
         i: "show".into(),
         sc: Scheme::Forall(
@@ -111,6 +112,17 @@ fn main() {
                     Qual(vec![], Type::func(Type::t_int(), Type::t_string())),
                 ),
                 vec![Alt(vec![], Expr::Var("show".into()))],
+            ),
+            Expl(
+                "str42".into(),
+                Scheme::Forall(list![], Qual(vec![], Type::t_string())),
+                vec![Alt(
+                    vec![],
+                    Expr::App(
+                        Expr::Var("show".into()).into(),
+                        Expr::Lit(Literal::Int(42)).into(),
+                    ),
+                )],
             ),
         ],
         vec![/*vec![
