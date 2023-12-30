@@ -49,7 +49,7 @@ impl Subst {
 
         let mut cursor = &self.0;
         while let SubstImpl::Assoc(ass) = cursor {
-            let (u, t, nxt) = &**ass;
+            let (u, _, nxt) = &**ass;
             cursor = nxt;
             out.push(u.clone());
         }

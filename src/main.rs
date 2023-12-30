@@ -17,26 +17,9 @@ mod type_inference;
 mod types;
 mod unification;
 
-use crate::ambiguity::Ambiguity;
-use crate::assumptions::Assump;
-use crate::classes::{ClassEnv, EnvTransformer};
-use crate::kinds::{HasKind, Kind};
-use crate::lists::{eq_diff, List};
-use crate::predicates::{match_pred, mgu_pred};
-use crate::qualified::Qual;
-use crate::scheme::Scheme;
-use crate::specific_inference::{
-    ti_program, Alt, BindGroup, Expl, Expr, Impl, Literal, Pat, Program,
-};
+use crate::classes::ClassEnv;
+use crate::specific_inference::{ti_program, Alt, BindGroup, Expr, Impl, Literal, Program};
 use crate::specifics::{add_core_classes, add_num_classes};
-use crate::substitutions::{Subst, Types};
-use crate::type_inference::TI;
-use crate::types::{Type, Tyvar};
-use crate::unification::{matches, mgu};
-use predicates::{Pred, Pred::IsIn};
-use std::fmt::{Debug, Formatter};
-use std::iter::once;
-use std::rc::Rc;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -101,7 +84,3 @@ fn main() {
 
 type Int = usize;
 type Id = String;
-
-fn enum_id(n: Int) -> Id {
-    format!("v{n}")
-}

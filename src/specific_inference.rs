@@ -80,7 +80,7 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
             Ok((ps, vec![], t))
         }
 
-        Pat::PNpk(i, k) => {
+        Pat::PNpk(i, _) => {
             let t = ti.new_tvar(Kind::Star);
             Ok((
                 vec![Pred::IsIn("Integral".into(), t.clone())],
@@ -92,7 +92,7 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
             ))
         }
 
-        Pat::PCon(Assump { i, sc }, pats) => {
+        Pat::PCon(Assump { sc, .. }, pats) => {
             let (mut ps, as_, ts) = ti_pats(ti, pats)?;
             let t_ = ti.new_tvar(Kind::Star);
             let Qual(qs, t) = ti.fresh_inst(sc);
@@ -144,7 +144,7 @@ fn ti_expr(
             Ok((ps, t))
         }
 
-        Expr::Const(Assump { i, sc }) => {
+        Expr::Const(Assump { sc, .. }) => {
             let Qual(ps, t) = ti.fresh_inst(sc);
             Ok((ps, t))
         }
@@ -228,7 +228,7 @@ fn ti_expl(
     ti: &mut TI,
     ce: &ClassEnv,
     ass: &[Assump],
-    Expl(i, sc, alts): &Expl,
+    Expl(_, sc, alts): &Expl,
 ) -> crate::Result<Vec<Pred>> {
     let Qual(qs, t) = ti.fresh_inst(sc);
     let ps = ti_alts(ti, ce, ass, alts, &t)?;
@@ -260,7 +260,7 @@ fn ti_expl(
 pub struct Impl(pub Id, pub Vec<Alt>);
 
 fn restricted(bs: &[Impl]) -> bool {
-    fn simple(Impl(i, alts): &Impl) -> bool {
+    fn simple(Impl(_, alts): &Impl) -> bool {
         alts.iter().any(|Alt(pat, _)| pat.is_empty())
     }
 
@@ -317,31 +317,31 @@ fn ti_bindgroup(
     ass: &[Assump],
     BindGroup(es, iss): &BindGroup,
 ) -> crate::Result<(Vec<Pred>, Vec<Assump>)> {
-    let as_: Vec<_> = es
+    let as1: Vec<_> = es
         .iter()
-        .map(|Expl(v, sc, alts)| Assump {
+        .map(|Expl(v, sc, _)| Assump {
             i: v.clone(),
             sc: sc.clone(),
         })
         .collect();
 
-    let mut as_as = as_.clone();
-    as_as.extend(ass.to_vec());
+    let mut as1_as = as1.clone();
+    as1_as.extend(ass.to_vec());
 
-    let (ps, as__) = ti_seq(ti_impls, ti, ce, as_as, iss)?;
+    let (ps, as2) = ti_seq(ti_impls, ti, ce, as1_as, iss)?;
 
-    let mut as__as_ = as__.clone();
-    as__as_.extend(as_);
+    let mut as2_as1 = as2.clone();
+    as2_as1.extend(as1);
 
-    let mut as__as_as = as__as_.clone();
-    as__as_as.extend(ass.to_vec());
+    let mut as2_as1_as = as2_as1.clone();
+    as2_as1_as.extend(ass.to_vec());
 
     let qss = es
         .iter()
-        .map(|e| ti_expl(ti, ce, &as__as_as, e))
+        .map(|e| ti_expl(ti, ce, &as2_as1_as, e))
         .collect::<crate::Result<Vec<_>>>()?;
 
-    Ok((once(ps).chain(qss).flatten().collect(), as__as_))
+    Ok((once(ps).chain(qss).flatten().collect(), as2_as1))
 }
 
 fn ti_seq<T>(

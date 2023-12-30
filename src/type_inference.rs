@@ -5,7 +5,7 @@ use crate::scheme::Scheme;
 use crate::substitutions::Subst;
 use crate::types::{Type, Tyvar};
 use crate::unification::mgu;
-use crate::{enum_id, Int};
+use crate::{Id, Int};
 
 /// The type inference state
 pub struct TI {
@@ -48,4 +48,8 @@ impl TI {
     fn ext_subst(&mut self, s: Subst) {
         self.subst = s.compose(&self.subst); // todo: is the order of composition correct?
     }
+}
+
+fn enum_id(n: Int) -> Id {
+    format!("v{n}")
 }

@@ -51,7 +51,7 @@ impl ClassEnv {
     }
 
     /// add a new or updated class definition
-    pub fn modify(&self, name: Id, cls: Class) -> Self {
+    fn modify(&self, name: Id, cls: Class) -> Self {
         let next = self.classes.clone();
         ClassEnv {
             classes: Rc::new(move |j| if j == &name { Ok(cls.clone()) } else { next(j) }),
@@ -72,7 +72,7 @@ impl ClassEnv {
 
     pub fn by_inst(&self, p: &Pred) -> crate::Result<List<Pred>> {
         match p {
-            Pred::IsIn(i, t) => self
+            Pred::IsIn(i, _) => self
                 .insts(i)
                 .iter()
                 .map(|Qual(ps, h)| {
@@ -93,7 +93,7 @@ impl ClassEnv {
             .any(|sup| sup.contains(p))
             || match self.by_inst(p) {
                 Err(_) => false,
-                Ok(qs) => qs.iter().all(|q| self.entail(ps, p)),
+                Ok(qs) => qs.iter().all(|_| self.entail(ps, p)),
             }
     }
 

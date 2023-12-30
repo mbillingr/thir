@@ -19,7 +19,7 @@ impl Types for Pred {
 
     fn tv(&self) -> Vec<Tyvar> {
         match self {
-            Pred::IsIn(i, t) => t.tv(),
+            Pred::IsIn(_, t) => t.tv(),
         }
     }
 }

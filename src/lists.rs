@@ -42,7 +42,7 @@ pub fn eq_union<T: PartialEq>(mut a: Vec<T>, b: impl IntoIterator<Item = T>) -> 
     a
 }
 
-pub fn eq_intersect<T: PartialEq>(a: impl IntoIterator<Item = T>, mut b: Vec<T>) -> Vec<T> {
+pub fn eq_intersect<T: PartialEq>(a: impl IntoIterator<Item = T>, b: Vec<T>) -> Vec<T> {
     a.into_iter().filter(|x| b.contains(x)).collect()
 }
 

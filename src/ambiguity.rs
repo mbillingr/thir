@@ -6,7 +6,7 @@ use crate::types::{Type, Tyvar};
 
 pub struct Ambiguity(pub Tyvar, pub Vec<Pred>);
 
-fn ambiguities(ce: &ClassEnv, vs: Vec<Tyvar>, ps: &[Pred]) -> Vec<Ambiguity> {
+fn ambiguities(vs: Vec<Tyvar>, ps: &[Pred]) -> Vec<Ambiguity> {
     let mut out = vec![];
     for v in eq_diff(ps.tv(), vs) {
         let ps_ = ps.iter().filter(|p| p.tv().contains(&v)).cloned().collect();
@@ -45,8 +45,8 @@ const STD_CLASSES: [&str; 17] = [
 ];
 
 fn candidates(ce: &ClassEnv, Ambiguity(v, qs): &Ambiguity) -> Vec<Type> {
-    let is_ = || qs.iter().map(|Pred::IsIn(i, t)| i);
-    let ts_: Vec<_> = qs.iter().map(|Pred::IsIn(i, t)| t).collect();
+    let is_ = || qs.iter().map(|Pred::IsIn(i, _)| i);
+    let ts_: Vec<_> = qs.iter().map(|Pred::IsIn(_, t)| t).collect();
 
     if !ts_
         .into_iter()
@@ -82,7 +82,7 @@ fn with_defaults<T>(
     vs: Vec<Tyvar>,
     ps: &[Pred],
 ) -> crate::Result<T> {
-    let vps = ambiguities(ce, vs, ps);
+    let vps = ambiguities(vs, ps);
     let tss = vps.iter().map(|vp| candidates(ce, vp));
 
     let mut heads = Vec::with_capacity(vps.len());
@@ -99,7 +99,7 @@ fn with_defaults<T>(
 
 pub fn defaulted_preds(ce: &ClassEnv, vs: Vec<Tyvar>, ps: &[Pred]) -> crate::Result<Vec<Pred>> {
     with_defaults(
-        |vps, ts| vps.into_iter().map(|Ambiguity(_, p)| p).flatten().collect(),
+        |vps, _| vps.into_iter().map(|Ambiguity(_, p)| p).flatten().collect(),
         ce,
         vs,
         ps,
