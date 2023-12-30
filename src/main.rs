@@ -61,14 +61,14 @@ fn main() {
                 Scheme::Forall(List::Nil, Qual(vec![], Type::t_int())),
                 vec![Alt(vec![], Expr::Var("bar".into()))],
             ),*/
-            Expl(
+            /*Expl(
                 "ident".into(),
                 Scheme::Forall(
                     list![Kind::Star],
                     Qual(vec![], Type::func(Type::TGen(0), Type::TGen(0))),
                 ),
                 vec![Alt(vec![Pat::PVar("x".into())], Expr::Var("x".into()))],
-            ),
+            ),*/
             /*Expl(
                 "a-const".into(),
                 Scheme::Forall(list![], Qual(vec![], Type::t_int())),
@@ -271,6 +271,18 @@ fn default_subst(ce: &ClassEnv, vs: Vec<Tyvar>, ps: &[Pred]) -> Result<Subst> {
 }
 
 // ============================================
+
+fn rfold1<T, I: DoubleEndedIterator<Item = T>>(
+    it: impl IntoIterator<Item = T, IntoIter = I>,
+    f: impl Fn(T, T) -> T,
+) -> T {
+    let mut it = it.into_iter().rev();
+    let mut res = it.next().expect("List with at least one element");
+    while let Some(x) = it.next() {
+        res = f(res, x);
+    }
+    res
+}
 
 fn list_diff<T: PartialEq>(a: impl IntoIterator<Item = T>, mut b: Vec<T>) -> Vec<T> {
     let mut out = vec![];

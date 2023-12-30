@@ -8,7 +8,7 @@ use crate::substitutions::Types;
 use crate::type_inference::TI;
 use crate::types::{Type, Tyvar};
 use crate::{
-    default_subst, defaulted_preds, find, list_diff, list_intersect, list_union, quantify,
+    default_subst, defaulted_preds, find, list_diff, list_intersect, list_union, quantify, rfold1,
     to_scheme, Id, Int,
 };
 use std::iter::once;
@@ -293,8 +293,8 @@ fn ti_impls(
     let ts_ = s.apply(&ts);
     let fs = s.apply(ass).tv();
     let vss = || ts_.iter().map(Types::tv);
-    let (mut ds, rs) = split(ce, &fs, &vss().rfold(vec![], list_intersect), &ps_)?;
-    let gs = list_diff(vss().rfold(vec![], list_union), fs);
+    let (mut ds, rs) = split(ce, &fs, &rfold1(vss(), list_intersect), &ps_)?;
+    let gs = list_diff(rfold1(vss(), list_union), fs);
     if restricted(bs) {
         let gs_ = list_diff(gs, rs.tv());
         let scs_ = ts_.into_iter().map(|t| quantify(&gs_, &Qual(vec![], t)));
@@ -376,6 +376,8 @@ pub fn ti_program(
 ) -> crate::Result<Vec<Assump>> {
     let mut ti = TI::new();
     let (ps, as_) = ti_seq(ti_bindgroup, &mut ti, ce, ass, bgs)?;
+    //println!("{:#?}", ps);
+    //println!("{:#?}", as_);
     let s = &ti.get_subst();
     let rs = ce.reduce(&s.apply(&ps))?;
     let s_ = default_subst(ce, vec![], &rs)?;
