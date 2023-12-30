@@ -16,7 +16,7 @@ pub fn rfold1<T, I: DoubleEndedIterator<Item = T>>(
     let mut it = it.into_iter().rev();
     let mut res = it.next().expect("List with at least one element");
     while let Some(x) = it.next() {
-        res = f(res, x);
+        res = f(x, res);
     }
     res
 }

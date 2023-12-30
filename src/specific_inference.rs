@@ -96,7 +96,9 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
             let (mut ps, as_, ts) = ti_pats(ti, pats)?;
             let t_ = ti.new_tvar(Kind::Star);
             let Qual(qs, t) = ti.fresh_inst(sc);
-            let f = ts.into_iter().rfold(t_.clone(), Type::func);
+            let f = ts
+                .into_iter()
+                .rfold(t_.clone(), |acc, t__| Type::func(t__, acc));
             ti.unify(&t, &f)?;
             ps.extend(qs);
             Ok((ps, as_, t_))
@@ -182,7 +184,8 @@ fn ti_alt(
     ass_.extend(ass.iter().cloned());
     let (qs, t) = ti_expr(ti, ce, &ass_, e)?;
     ps.extend(qs);
-    let f = ts.into_iter().rfold(t, Type::func);
+    println!("{:?}", ts);
+    let f = ts.into_iter().rfold(t, |acc, t_| Type::func(t_, acc));
     Ok((ps, f))
 }
 
