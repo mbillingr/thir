@@ -18,6 +18,7 @@ mod types;
 mod unification;
 
 use crate::classes::ClassEnv;
+use crate::kinds::Kind;
 use crate::predicates::Pred::IsIn;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
@@ -38,16 +39,19 @@ fn main() {
         vec![Expl(
             "foo".into(),
             Scheme::Forall(
-                list![],
+                list![Kind::Star, Kind::Star],
                 Qual(
                     vec![IsIn(
                         "Mix".into(),
-                        vec![Type::t_int(), Type::t_double(), Type::t_double()],
+                        vec![Type::TGen(0), Type::TGen(1), Type::TGen(1)],
                     )],
-                    Type::t_int(),
+                    Type::func(Type::TGen(0), Type::func(Type::TGen(1), Type::TGen(1))),
                 ),
             ),
-            vec![Alt(vec![], Expr::Lit(Literal::Int(12)))],
+            vec![Alt(
+                vec![Pat::PVar("a".into()), Pat::PVar("b".into())],
+                Expr::Var("b".into()),
+            )],
         )],
         vec![],
     )]);
