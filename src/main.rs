@@ -18,8 +18,14 @@ mod types;
 mod unification;
 
 use crate::classes::ClassEnv;
-use crate::specific_inference::{ti_program, Alt, BindGroup, Expr, Impl, Literal, Program};
+use crate::kinds::Kind;
+use crate::qualified::Qual;
+use crate::scheme::Scheme;
+use crate::specific_inference::{
+    ti_program, Alt, BindGroup, Expl, Expr, Impl, Literal, Pat, Program,
+};
 use crate::specifics::{add_core_classes, add_num_classes};
+use crate::types::Type;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -43,18 +49,39 @@ fn main() {
                 ),
                 vec![Alt(vec![Pat::PVar("x".into())], Expr::Var("x".into()))],
             ),*/
+            Expl(
+                "ignore-arg".into(),
+                Scheme::Forall(
+                    list![Kind::Star],
+                    Qual(vec![], Type::func(Type::TGen(0), Type::t_int())),
+                ),
+                vec![Alt(vec![Pat::PWildcard], Expr::Lit(Literal::Int(0)))],
+            ),
+            /*Expl(
+                "snd".into(),
+                Scheme::Forall(
+                    list![Kind::Star],
+                    Qual(
+                        vec![],
+                        Type::func(Type::TGen(0), Type::func(Type::t_int(), Type::t_int())),
+                    ),
+                ),
+                vec![Alt(
+                    vec![Pat::PWildcard, Pat::PVar("x".into())],
+                    Expr::Var("x".into()),
+                )],
+            ),*/
             /*Expl(
                 "a-const".into(),
                 Scheme::Forall(list![], Qual(vec![], Type::t_int())),
                 vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
             ),*/
         ],
-        vec![vec![
-            // todo: why do the implicits (in particular, the constant) result in generic types?
-            Impl(
+        vec![/*vec![
+            /*Impl(
                 "a-const".into(),
                 vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
-            ),
+            ),*/
             /*Impl(
                 "bar".into(),
                 vec![Alt(
@@ -75,7 +102,7 @@ fn main() {
                     ),
                 )],
             ),*/
-        ]],
+        ]*/],
     )]);
 
     let r = ti_program(&ce, vec![], &prog);
