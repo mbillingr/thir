@@ -27,7 +27,7 @@ use crate::specific_inference::{
     ti_program, Alt, BindGroup, Expl, Expr, Impl, Literal, Pat, Program,
 };
 use crate::specifics::{add_core_classes, add_num_classes};
-use crate::types::Type;
+use crate::types::{Type, Tyvar};
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -111,7 +111,13 @@ fn main() {
                     list![],
                     Qual(vec![], Type::func(Type::t_int(), Type::t_string())),
                 ),
-                vec![Alt(vec![], Expr::Var("show".into()))],
+                vec![Alt(
+                    vec![Pat::PVar("x".into())],
+                    Expr::App(
+                        Expr::Var("show".into()).into(),
+                        Expr::Var("x".into()).into(),
+                    ),
+                )],
             ),
             Expl(
                 "str42".into(),
