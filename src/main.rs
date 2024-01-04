@@ -2,6 +2,7 @@
 // https://web.cecs.pdx.edu/~mpj/thih/thih.pdf?_gl=1*1kpcq97*_ga*MTIwMTgwNTIxMS4xNzAyMzAzNTg2*_ga_G56YW5RFXN*MTcwMjMwMzU4NS4xLjAuMTcwMjMwMzU4NS4wLjAuMA..
 
 mod ambiguity;
+mod annotate;
 mod assumptions;
 mod classes;
 mod instantiate;
@@ -17,6 +18,7 @@ mod type_inference;
 mod types;
 mod unification;
 
+use crate::annotate::annotate_function;
 use crate::assumptions::Assump;
 use crate::classes::ClassEnv;
 use crate::kinds::Kind;
@@ -56,14 +58,14 @@ fn main() {
                 Scheme::Forall(List::Nil, Qual(vec![], Type::t_int())),
                 vec![Alt(vec![], Expr::Var("bar".into()))],
             ),*/
-            /*Expl(
+            Expl(
                 "ident".into(),
                 Scheme::Forall(
                     list![Kind::Star],
                     Qual(vec![], Type::func(Type::TGen(0), Type::TGen(0))),
                 ),
                 vec![Alt(vec![Pat::PVar("x".into())], Expr::Var("x".into()))],
-            ),*/
+            ),
             /*Expl(
                 "ignore-arg".into(),
                 Scheme::Forall(
@@ -85,7 +87,7 @@ fn main() {
                     vec![Pat::PVar("x".into()), Pat::PWildcard],
                     Expr::Var("x".into()),
                 )],
-            ),
+            ),*/
             Expl(
                 "snd".into(),
                 Scheme::Forall(
@@ -96,22 +98,31 @@ fn main() {
                     ),
                 ),
                 vec![Alt(
-                    vec![Pat::PWildcard, Pat::PVar("x".into())],
-                    Expr::Var("x".into()),
+                    vec![Pat::PVar("x".into()), Pat::PVar("y".into())],
+                    Expr::Var("y".into()),
                 )],
-            ),*/
+            ),
             /*Expl(
                 "a-const".into(),
                 Scheme::Forall(list![], Qual(vec![], Type::t_int())),
                 vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
             ),*/
             Expl(
-                "show-int".into(),
+                "show2".into(),
                 Scheme::Forall(
-                    list![],
-                    Qual(vec![], Type::func(Type::t_int(), Type::t_string())),
+                    list![Kind::Star],
+                    Qual(
+                        vec![Pred::IsIn("Show".into(), Type::TGen(0))],
+                        Type::func(Type::TGen(0), Type::t_string()),
+                    ),
                 ),
-                vec![Alt(vec![], Expr::Var("show".into()))],
+                vec![Alt(
+                    vec![Pat::PVar("x".into())],
+                    Expr::App(
+                        Expr::Var("show".into()).into(),
+                        Expr::Var("x".into()).into(),
+                    ),
+                )],
             ),
             Expl(
                 "str42".into(),
@@ -153,8 +164,14 @@ fn main() {
         ]*/],
     )]);
 
-    let r = ti_program(&ce, initial_assumptions, &prog);
-    println!("{r:#?}")
+    let r = ti_program(&ce, initial_assumptions, &prog).unwrap();
+    println!("{r:#?}");
+
+    let f = &prog.0[0].0[1];
+    println!(
+        "{:?}",
+        annotate_function(&f.0, &f.2, &[Type::t_char(), Type::t_unit()], &r[1])
+    );
 }
 
 type Int = usize;

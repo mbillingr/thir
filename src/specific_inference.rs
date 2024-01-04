@@ -13,6 +13,7 @@ use crate::{Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 
+#[derive(Debug)]
 pub enum Literal {
     Int(i64),
     Char(char),
@@ -35,6 +36,7 @@ fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
     }
 }
 
+#[derive(Debug)]
 pub enum Pat {
     PVar(Id),
     PWildcard,
@@ -125,12 +127,14 @@ fn ti_pats(ti: &mut TI, pats: &[Pat]) -> crate::Result<(Vec<Pred>, Vec<Assump>, 
     Ok((ps, as_, ts))
 }
 
+#[derive(Debug)]
 pub enum Expr {
     Var(Id),
     Lit(Literal),
     Const(Assump),
     App(Rc<Expr>, Rc<Expr>),
     Let(BindGroup, Rc<Expr>),
+    Annotation(Type, Rc<Expr>),
 }
 
 fn ti_expr(
@@ -169,9 +173,12 @@ fn ti_expr(
             ps.extend(qs);
             Ok((ps, t))
         }
+
+        Expr::Annotation(_, _) => unimplemented!("manual expression annotation"),
     }
 }
 
+#[derive(Debug)]
 pub struct Alt(pub Vec<Pat>, pub Expr);
 
 fn ti_alt(
@@ -184,7 +191,6 @@ fn ti_alt(
     ass_.extend(ass.iter().cloned());
     let (qs, t) = ti_expr(ti, ce, &ass_, e)?;
     ps.extend(qs);
-    println!("{:?}", ts);
     let f = ts.into_iter().rfold(t, |acc, t_| Type::func(t_, acc));
     Ok((ps, f))
 }
@@ -225,6 +231,7 @@ fn split(
 }
 
 /// Explicitly typed binding
+#[derive(Debug)]
 pub struct Expl(pub Id, pub Scheme, pub Vec<Alt>);
 
 fn ti_expl(
@@ -260,6 +267,7 @@ fn ti_expl(
 }
 
 /// Implicitly typed binding
+#[derive(Debug)]
 pub struct Impl(pub Id, pub Vec<Alt>);
 
 fn restricted(bs: &[Impl]) -> bool {
@@ -312,6 +320,7 @@ fn ti_impls(
     }
 }
 
+#[derive(Debug)]
 pub struct BindGroup(pub Vec<Expl>, pub Vec<Vec<Impl>>);
 
 fn ti_bindgroup(
