@@ -88,7 +88,7 @@ fn main() {
                     Expr::Var("x".into()),
                 )],
             ),*/
-            Expl(
+            /*Expl(
                 "snd".into(),
                 Scheme::Forall(
                     list![Kind::Star, Kind::Star],
@@ -101,7 +101,7 @@ fn main() {
                     vec![Pat::PVar("x".into()), Pat::PVar("y".into())],
                     Expr::Var("y".into()),
                 )],
-            ),
+            ),*/
             /*Expl(
                 "a-const".into(),
                 Scheme::Forall(list![], Qual(vec![], Type::t_int())),
@@ -170,7 +170,7 @@ fn main() {
     let f = &prog.0[0].0[1];
     println!(
         "{:?}",
-        annotate_function(&f.0, &f.2, &[Type::t_char(), Type::t_unit()], &r[1])
+        annotate_function(&f.0, &f.2, &[Type::t_char(), Type::t_unit()], &r)
     );
 }
 

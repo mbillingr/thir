@@ -13,7 +13,7 @@ use crate::{Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Literal {
     Int(i64),
     Char(char),
@@ -36,7 +36,7 @@ fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Pat {
     PVar(Id),
     PWildcard,
