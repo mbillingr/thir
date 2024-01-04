@@ -106,10 +106,13 @@ fn main() {
                 vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
             ),*/
             Expl(
-                "show-int".into(),
+                "show2".into(),
                 Scheme::Forall(
-                    list![],
-                    Qual(vec![], Type::func(Type::t_int(), Type::t_string())),
+                    list![Kind::Star],
+                    Qual(
+                        vec![Pred::IsIn("Show".into(), Type::TGen(0))],
+                        Type::func(Type::TGen(0), Type::t_string()),
+                    ),
                 ),
                 vec![Alt(
                     vec![Pat::PVar("x".into())],
@@ -119,7 +122,7 @@ fn main() {
                     ),
                 )],
             ),
-            Expl(
+            /*Expl(
                 "str42".into(),
                 Scheme::Forall(list![], Qual(vec![], Type::t_string())),
                 vec![Alt(
@@ -129,34 +132,46 @@ fn main() {
                         Expr::Lit(Literal::Int(42)).into(),
                     ),
                 )],
-            ),
+            ),*/
         ],
-        vec![/*vec![
-            /*Impl(
-                "a-const".into(),
-                vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
-            ),*/
-            /*Impl(
-                "bar".into(),
+        vec![
+            /*vec![Impl(
+                "show-int".into(),
                 vec![Alt(
-                    vec![],
+                    vec![Pat::PVar("x".into())],
                     Expr::App(
-                        Expr::Var("ident".into()).into(),
-                        Expr::Lit(Literal::Int(42)).into(),
+                        Expr::Var("show".into()).into(),
+                        Expr::Var("x".into()).into(),
                     ),
                 )],
-            ),
-            Impl(
-                "baz".into(),
-                vec![Alt(
-                    vec![],
-                    Expr::App(
-                        Expr::Var("ident".into()).into(),
-                        Expr::Var("ident".into()).into(),
+            )], */
+            /*vec![
+                    /*Impl(
+                        "a-const".into(),
+                        vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
+                    ),*/
+                    /*Impl(
+                        "bar".into(),
+                        vec![Alt(
+                            vec![],
+                            Expr::App(
+                                Expr::Var("ident".into()).into(),
+                                Expr::Lit(Literal::Int(42)).into(),
+                            ),
+                        )],
                     ),
-                )],
-            ),*/
-        ]*/],
+                    Impl(
+                        "baz".into(),
+                        vec![Alt(
+                            vec![],
+                            Expr::App(
+                                Expr::Var("ident".into()).into(),
+                                Expr::Var("ident".into()).into(),
+                            ),
+                        )],
+                    ),*/
+                ]*/
+        ],
     )]);
 
     let r = ti_program(&ce, initial_assumptions, &prog);
