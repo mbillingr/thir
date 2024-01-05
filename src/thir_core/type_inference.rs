@@ -1,11 +1,11 @@
-use crate::instantiate::Instantiate;
-use crate::kinds::Kind;
-use crate::qualified::Qual;
-use crate::scheme::Scheme;
-use crate::substitutions::Subst;
-use crate::types::{Type, Tyvar};
-use crate::unification::mgu;
-use crate::{Id, Int};
+use crate::thir_core::instantiate::Instantiate;
+use crate::thir_core::kinds::Kind;
+use crate::thir_core::qualified::Qual;
+use crate::thir_core::scheme::Scheme;
+use crate::thir_core::substitutions::Subst;
+use crate::thir_core::types::{Type, Tyvar};
+use crate::thir_core::unification::mgu;
+use crate::thir_core::{Id, Int};
 
 /// The type inference state
 pub struct TI {

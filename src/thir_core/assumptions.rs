@@ -1,7 +1,7 @@
-use crate::scheme::Scheme;
-use crate::substitutions::{Subst, Types};
-use crate::types::Tyvar;
-use crate::Id;
+use crate::thir_core::scheme::Scheme;
+use crate::thir_core::substitutions::{Subst, Types};
+use crate::thir_core::types::Tyvar;
+use crate::thir_core::Id;
 use std::fmt::{Debug, Formatter};
 
 /// Represent assumptions about the type of a variable by pairing

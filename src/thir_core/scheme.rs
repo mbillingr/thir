@@ -1,9 +1,9 @@
-use crate::kinds::{HasKind, Kind};
-use crate::lists::List;
-use crate::qualified::Qual;
-use crate::substitutions::{Subst, Types};
-use crate::types::{Type, Tyvar};
-use crate::Int;
+use crate::thir_core::kinds::{HasKind, Kind};
+use crate::thir_core::lists::List;
+use crate::thir_core::qualified::Qual;
+use crate::thir_core::substitutions::{Subst, Types};
+use crate::thir_core::types::{Type, Tyvar};
+use crate::thir_core::Int;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Scheme {

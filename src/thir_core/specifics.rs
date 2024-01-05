@@ -1,7 +1,7 @@
-use crate::classes::EnvTransformer;
-use crate::kinds::Kind;
-use crate::predicates::Pred::IsIn;
-use crate::types::{Tycon, Type};
+use crate::thir_core::classes::EnvTransformer;
+use crate::thir_core::kinds::Kind;
+use crate::thir_core::predicates::Pred::IsIn;
+use crate::thir_core::types::{Tycon, Type};
 
 impl Type {
     /// construct the unit type

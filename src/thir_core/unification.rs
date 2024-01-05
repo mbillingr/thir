@@ -1,8 +1,9 @@
-use crate::kinds::HasKind;
-use crate::substitutions::{Subst, Types};
-use crate::types::{Type, Tyvar};
+use crate::thir_core::kinds::HasKind;
+use crate::thir_core::substitutions::{Subst, Types};
+use crate::thir_core::types::{Type, Tyvar};
+use crate::Result;
 
-pub fn mgu(a: &Type, b: &Type) -> crate::Result<Subst> {
+pub fn mgu(a: &Type, b: &Type) -> Result<Subst> {
     use Type::*;
     match (a, b) {
         (TApp(app1), TApp(app2)) => {
@@ -39,7 +40,7 @@ fn var_bind(u: &Tyvar, t: &Type) -> crate::Result<Subst> {
     Ok(Subst::single(u.clone(), t.clone()))
 }
 
-pub fn matches(a: &Type, b: &Type) -> crate::Result<Subst> {
+pub fn matches(a: &Type, b: &Type) -> Result<Subst> {
     use Type::*;
     match (a, b) {
         (TApp(app1), TApp(app2)) => {

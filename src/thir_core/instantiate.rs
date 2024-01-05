@@ -1,7 +1,7 @@
-use crate::lists::List;
-use crate::predicates::Pred;
-use crate::qualified::Qual;
-use crate::types::Type;
+use crate::thir_core::lists::List;
+use crate::thir_core::predicates::Pred;
+use crate::thir_core::qualified::Qual;
+use crate::thir_core::types::Type;
 
 pub trait Instantiate {
     fn inst(&self, ts: &[Type]) -> Self;

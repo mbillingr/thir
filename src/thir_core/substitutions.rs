@@ -2,8 +2,8 @@
 Substitutions associate type variables with types.
 !*/
 
-use crate::lists::{eq_intersect, eq_union, List};
-use crate::types::{Type, Tyvar};
+use crate::thir_core::lists::{eq_intersect, eq_union, List};
+use crate::thir_core::types::{Type, Tyvar};
 use std::rc::Rc;
 
 /// A substitution that associates type variables with types.
@@ -197,7 +197,7 @@ impl<T: Types> Types for List<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kinds::Kind;
+    use crate::thir_core::kinds::Kind;
 
     #[test]
     fn lookup_in_subst() {

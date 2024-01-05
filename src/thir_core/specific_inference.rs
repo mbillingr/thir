@@ -1,15 +1,15 @@
-use crate::ambiguity::{default_subst, defaulted_preds};
-use crate::assumptions::{find, Assump};
-use crate::classes::ClassEnv;
-use crate::kinds::Kind;
-use crate::lists::{eq_diff, eq_intersect, eq_union, rfold1};
-use crate::predicates::Pred;
-use crate::qualified::Qual;
-use crate::scheme::Scheme;
-use crate::substitutions::Types;
-use crate::type_inference::TI;
-use crate::types::{Type, Tyvar};
-use crate::{Id, Int};
+use crate::thir_core::ambiguity::{default_subst, defaulted_preds};
+use crate::thir_core::assumptions::{find, Assump};
+use crate::thir_core::classes::ClassEnv;
+use crate::thir_core::kinds::Kind;
+use crate::thir_core::lists::{eq_diff, eq_intersect, eq_union, rfold1};
+use crate::thir_core::predicates::Pred;
+use crate::thir_core::qualified::Qual;
+use crate::thir_core::scheme::Scheme;
+use crate::thir_core::substitutions::Types;
+use crate::thir_core::type_inference::TI;
+use crate::thir_core::types::{Type, Tyvar};
+use crate::thir_core::{Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 

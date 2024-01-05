@@ -1,9 +1,9 @@
 use crate::list;
-use crate::lists::List;
-use crate::predicates::{match_pred, mgu_pred, Pred};
-use crate::qualified::Qual;
-use crate::types::Type;
-use crate::Id;
+use crate::thir_core::lists::List;
+use crate::thir_core::predicates::{match_pred, mgu_pred, Pred};
+use crate::thir_core::qualified::Qual;
+use crate::thir_core::types::Type;
+use crate::thir_core::Id;
 use std::rc::Rc;
 
 /// A Type class (Interface) contains a list of super classes and a list of instances.

@@ -1,8 +1,8 @@
 /*!
 Types
 !*/
-use crate::kinds::{HasKind, Kind};
-use crate::{Id, Int};
+use crate::thir_core::kinds::{HasKind, Kind};
+use crate::thir_core::{Id, Int};
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 

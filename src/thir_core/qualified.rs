@@ -1,7 +1,7 @@
-use crate::lists::eq_union;
-use crate::predicates::Pred;
-use crate::substitutions::{Subst, Types};
-use crate::types::Tyvar;
+use crate::thir_core::lists::eq_union;
+use crate::thir_core::predicates::Pred;
+use crate::thir_core::substitutions::{Subst, Types};
+use crate::thir_core::types::Tyvar;
 use std::fmt::{Debug, Formatter};
 
 /// A qualified type is restricted by a list of predicates.
