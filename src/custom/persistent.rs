@@ -25,6 +25,24 @@ impl<K: Hash + Eq, T> PersistentMap<K, T> {
         K: Borrow<Q>,
         Q: Hash + Eq,
     {
+        self.get_pair(key).map(|(_, v)| v)
+    }
+
+    #[inline]
+    pub fn contains_key<Q: ?Sized>(&self, key: &Q) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.get_pair(key).is_some()
+    }
+
+    #[inline]
+    pub fn get_pair<Q: ?Sized>(&self, key: &Q) -> Option<(&K, &T)>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
         let k = hash(&key);
         self.0.get(key, k)
     }
@@ -50,10 +68,76 @@ impl<K: Hash + Eq, T> PersistentMap<K, T> {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+
+    #[inline]
+    pub fn merge(&self, other: &Self) -> Self {
+        // todo: It's probably more efficient to implement this at the trie level...
+        let mut res = self.clone();
+        for leaf in other.0.leaves().cloned() {
+            let k = hash(&leaf.0);
+            res = PersistentMap(res.0._insert(leaf, k, LEAF_BITS))
+        }
+        res
+    }
+}
+
+impl<K, T> Clone for PersistentMap<K, T> {
+    fn clone(&self) -> Self {
+        PersistentMap(self.0.clone())
+    }
 }
 
 #[derive(Debug)]
-pub struct PersistentSet<T>(Hamt<T, ()>);
+pub struct PersistentSet<T>(PersistentMap<T, ()>);
+
+impl<T: Hash + Eq> PersistentSet<T> {
+    #[inline]
+    pub fn new() -> Self {
+        PersistentSet(PersistentMap::new())
+    }
+
+    #[inline]
+    pub fn contains<Q: ?Sized>(&self, key: &Q) -> bool
+    where
+        T: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.0.get_pair(key).is_some()
+    }
+
+    #[inline]
+    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&T>
+    where
+        T: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.0.get_pair(key).map(|(k, _)| k)
+    }
+
+    #[inline]
+    pub fn insert(&self, key: T) -> Self {
+        PersistentSet(self.0.insert(key, ()))
+    }
+
+    #[inline]
+    pub fn remove<Q: ?Sized>(&self, key: &Q) -> Option<Self>
+    where
+        T: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        self.0.remove(key).map(Self)
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[inline]
+    pub fn union(&self, other: &Self) -> Self {
+        PersistentSet(self.0.merge(&other.0))
+    }
+}
 
 const LEAF_SIZE: usize = 32;
 const LEAF_BITS: u32 = LEAF_SIZE.ilog2();
@@ -128,10 +212,14 @@ impl<K, T> Hamt<K, T> {
     fn len(&self) -> usize {
         self.subtrie.iter().map(Trie::len).sum()
     }
+
+    fn leaves(&self) -> LeafIterator<K, T> {
+        LeafIterator::new(&self.subtrie)
+    }
 }
 
 impl<K: Eq + Hash, T> Hamt<K, T> {
-    pub fn get<Q: ?Sized>(&self, key: &Q, k: u64) -> Option<&T>
+    pub fn get<Q: ?Sized>(&self, key: &Q, k: u64) -> Option<(&K, &T)>
     where
         K: Borrow<Q>,
         Q: Hash + Eq,
@@ -143,34 +231,34 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         }
 
         match &self.subtrie[idx_] {
-            Trie::Leaf(rc) if rc.0.borrow() == key => Some(&rc.1),
+            Trie::Leaf(rc) if rc.0.borrow() == key => Some((&rc.0, &rc.1)),
             Trie::Leaf(_) => None,
             Trie::Node(child) => child.get(key, k >> LEAF_BITS),
         }
     }
     #[inline]
     fn insert(&self, key: K, val: T, k: u64) -> Self {
-        self._insert(key, val, k, LEAF_BITS)
+        self._insert(Rc::new((key, val)), k, LEAF_BITS)
     }
 
-    fn _insert(&self, key: K, val: T, k: u64, depth: u32) -> Self {
+    fn _insert(&self, leaf: Rc<(K, T)>, k: u64, depth: u32) -> Self {
         let (mask_bit, idx_) = self.hash_location(k);
 
         let subtrie = if self.is_free(mask_bit) {
             // free slot
-            insert(idx_, Trie::leaf(key, val), &self.subtrie).into()
+            insert(idx_, Trie::Leaf(leaf), &self.subtrie).into()
         } else {
             // occupied slot
             let new_child = match &self.subtrie[idx_] {
-                Trie::Leaf(rc) if rc.0 == key => Trie::leaf(key, val),
-                leaf @ Trie::Leaf(rc) => split(
-                    Trie::leaf(key, val),
+                Trie::Leaf(rc) if rc.0 == leaf.0 => Trie::Leaf(leaf),
+                old_leaf @ Trie::Leaf(rc) => split(
+                    Trie::Leaf(leaf),
                     k >> LEAF_BITS,
-                    leaf.clone(),
+                    old_leaf.clone(),
                     hash(&rc.0) >> depth,
                 ),
                 Trie::Node(child) => {
-                    Trie::Node(child._insert(key, val, k >> LEAF_BITS, depth + LEAF_BITS))
+                    Trie::Node(child._insert(leaf, k >> LEAF_BITS, depth + LEAF_BITS))
                 }
             };
             replace(idx_, new_child, &self.subtrie).into()
@@ -343,6 +431,37 @@ fn remove<T: Clone>(idx: usize, xs: &[T]) -> Vec<T> {
     res
 }
 
+struct LeafIterator<'a, K, T> {
+    stack: Vec<(usize, &'a Rc<[Trie<K, T>]>)>,
+}
+
+impl<'a, K, T> LeafIterator<'a, K, T> {
+    pub fn new(root: &'a Rc<[Trie<K, T>]>) -> Self {
+        LeafIterator {
+            stack: vec![(0, root)],
+        }
+    }
+}
+
+impl<'a, K, T> Iterator for LeafIterator<'a, K, T> {
+    type Item = &'a Rc<(K, T)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (idx, arr) = self.stack.pop()?;
+        if idx >= arr.len() {
+            return self.next();
+        }
+        self.stack.push((idx + 1, arr));
+        match &arr[idx] {
+            Trie::Node(hamt) => {
+                self.stack.push((0, &hamt.subtrie));
+                self.next()
+            }
+            Trie::Leaf(rc) => Some(rc),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -415,5 +534,16 @@ mod tests {
             d = d.insert(k, k)
         }
         assert_eq!(d.len(), 1000);
+    }
+
+    #[test]
+    fn merge() {
+        let a = PersistentMap::new().insert("a", 1).insert("b", 2);
+        let b = PersistentMap::new().insert("b", 3).insert("c", 4);
+        let e = PersistentMap::new()
+            .insert("a", 1)
+            .insert("b", 3)
+            .insert("c", 4);
+        assert_eq!(a.merge(&b), e);
     }
 }
