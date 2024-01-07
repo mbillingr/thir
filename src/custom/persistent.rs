@@ -71,13 +71,7 @@ impl<K: Hash + Eq, T> PersistentMap<K, T> {
 
     #[inline]
     pub fn merge(&self, other: &Self) -> Self {
-        // todo: It's probably more efficient to implement this at the trie level...
-        let mut res = self.clone();
-        for leaf in other.0.leaves().cloned() {
-            let k = hash(&leaf.0);
-            res = PersistentMap(res.0._insert(leaf, k, LEAF_BITS))
-        }
-        res
+        PersistentMap(self.0.merge(&other.0, 0))
     }
 }
 
@@ -161,6 +155,7 @@ impl<K, T> Trie<K, T> {
         }
     }
 }
+
 impl<K: Eq + Hash, T> Trie<K, T> {
     pub fn remove<Q: ?Sized>(&self, key: &Q, k: u64) -> RemoveResult<K, T>
     where
@@ -171,6 +166,29 @@ impl<K: Eq + Hash, T> Trie<K, T> {
             Trie::Leaf(rc) if rc.0.borrow() == key => Removed,
             Trie::Leaf(_) => return NotFound,
             Trie::Node(child) => child.remove_from_node(key, k >> LEAF_BITS),
+        }
+    }
+
+    fn merge(&self, other: &Self, depth: u32) -> Self {
+        match (self, other) {
+            (Trie::Leaf(a), Trie::Leaf(b)) if a.0 == b.0 => other.clone(),
+            (Trie::Leaf(a), Trie::Leaf(b)) => split(
+                self.clone(),
+                hash(&a.0) >> depth,
+                other.clone(),
+                hash(&b.0) >> depth,
+            ),
+            (Trie::Leaf(a), Trie::Node(b)) => {
+                match b._insert(a.clone(), hash(&a.0) >> depth, depth + LEAF_BITS, false) {
+                    None => other.clone(),
+                    Some(b_) => Trie::Node(b_),
+                }
+            }
+            (Trie::Node(a), Trie::Leaf(b)) => Trie::Node(
+                a._insert(b.clone(), hash(&b.0) >> depth, depth + LEAF_BITS, true)
+                    .unwrap(),
+            ),
+            (Trie::Node(a), Trie::Node(b)) => Trie::Node(a.merge(b, depth)),
         }
     }
 }
@@ -238,10 +256,17 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
     }
     #[inline]
     fn insert(&self, key: K, val: T, k: u64) -> Self {
-        self._insert(Rc::new((key, val)), k, LEAF_BITS)
+        self._insert(Rc::new((key, val)), k, LEAF_BITS, true)
+            .unwrap()
     }
 
-    fn _insert(&self, leaf: Rc<(K, T)>, k: u64, depth: u32) -> Self {
+    fn _insert(
+        &self,
+        leaf: Rc<(K, T)>,
+        k: u64,
+        depth: u32,
+        replace_existing: bool,
+    ) -> Option<Self> {
         let (mask_bit, idx_) = self.hash_location(k);
 
         let subtrie = if self.is_free(mask_bit) {
@@ -250,24 +275,34 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         } else {
             // occupied slot
             let new_child = match &self.subtrie[idx_] {
-                Trie::Leaf(rc) if rc.0 == leaf.0 => Trie::Leaf(leaf),
+                Trie::Leaf(rc) if rc.0 == leaf.0 => {
+                    if replace_existing {
+                        Trie::Leaf(leaf)
+                    } else {
+                        return None;
+                    }
+                }
                 old_leaf @ Trie::Leaf(rc) => split(
                     Trie::Leaf(leaf),
                     k >> LEAF_BITS,
                     old_leaf.clone(),
                     hash(&rc.0) >> depth,
                 ),
-                Trie::Node(child) => {
-                    Trie::Node(child._insert(leaf, k >> LEAF_BITS, depth + LEAF_BITS))
-                }
+                Trie::Node(child) => Trie::Node(child._insert(
+                    leaf,
+                    k >> LEAF_BITS,
+                    depth + LEAF_BITS,
+                    replace_existing,
+                )?),
             };
             replace(idx_, new_child, &self.subtrie).into()
         };
-        Hamt {
+        Some(Hamt {
             mapping: self.mapping | mask_bit,
             subtrie,
-        }
+        })
     }
+
     pub fn remove_from_root<Q: ?Sized>(&self, key: &Q, k: u64) -> Option<Self>
     where
         K: Borrow<Q>,
@@ -316,6 +351,43 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         }
     }
 
+    fn merge(&self, other: &Self, depth: u32) -> Self {
+        if self.ptr_eq(other) {
+            return self.clone();
+        }
+
+        let a = self.slots();
+        let b = other.slots();
+
+        let mut mapping = 0;
+        let mut subtrie = vec![];
+
+        for ((m, t1), (m2, t2)) in self.slots().zip(other.slots()) {
+            debug_assert_eq!(m, m2);
+            match (t1, t2) {
+                (None, None) => continue,
+                (Some(a), None) => subtrie.push(a.clone()),
+                (None, Some(b)) => subtrie.push(b.clone()),
+                (Some(a), Some(b)) => subtrie.push(a.merge(b, depth + LEAF_BITS)),
+            }
+            mapping |= m;
+        }
+        Hamt {
+            mapping,
+            subtrie: subtrie.into(),
+        }
+    }
+
+    #[inline]
+    fn ptr_eq(&self, other: &Self) -> bool {
+        if Rc::ptr_eq(&self.subtrie, &other.subtrie) {
+            debug_assert_eq!(self.mapping, other.mapping);
+            true
+        } else {
+            false
+        }
+    }
+
     #[inline]
     fn is_free(&self, mask_bit: u32) -> bool {
         self.mapping & mask_bit == 0
@@ -341,6 +413,20 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
             mapping: self.mapping & !mask_bit,
             subtrie: remove(idx, &self.subtrie).into(),
         }
+    }
+
+    fn slots(&self) -> impl Iterator<Item = (u32, Option<&Trie<K, T>>)> {
+        let mut children = self.subtrie.iter();
+        (0..32).map(|idx| 1 << idx).map(move |bm| {
+            (
+                bm,
+                if self.is_free(bm) {
+                    None
+                } else {
+                    children.next()
+                },
+            )
+        })
     }
 }
 
@@ -544,6 +630,24 @@ mod tests {
             .insert("a", 1)
             .insert("b", 3)
             .insert("c", 4);
+        assert_eq!(a.merge(&b), e);
+    }
+
+    #[test]
+    fn merge_big() {
+        let mut a = PersistentMap::new();
+        for i in 0..2000 {
+            a = a.insert(i, i);
+        }
+        let mut b = PersistentMap::new();
+        for i in 1000..3000 {
+            b = b.insert(i, -i);
+        }
+        let mut e = PersistentMap::new();
+        for i in 0..3000 {
+            e = e.insert(i, if i < 1000 { i } else { -i });
+        }
+
         assert_eq!(a.merge(&b), e);
     }
 }
