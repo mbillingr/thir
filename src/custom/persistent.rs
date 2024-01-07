@@ -44,7 +44,7 @@ impl<K: Hash + Eq, T> PersistentMap<K, T> {
         Q: Hash + Eq,
     {
         let k = hash(&key);
-        self.0.get(key, k)
+        self.0.get(key, k).map(|rc| (&rc.0, &rc.1))
     }
 
     #[inline]
@@ -72,6 +72,11 @@ impl<K: Hash + Eq, T> PersistentMap<K, T> {
     #[inline]
     pub fn merge(&self, other: &Self) -> Self {
         PersistentMap(self.0.merge(&other.0, 0))
+    }
+
+    #[inline]
+    pub fn intersect(&self, other: &Self) -> Self {
+        PersistentMap(self.0.intersect(&other.0))
     }
 }
 
@@ -131,6 +136,11 @@ impl<T: Hash + Eq> PersistentSet<T> {
     pub fn union(&self, other: &Self) -> Self {
         PersistentSet(self.0.merge(&other.0))
     }
+
+    #[inline]
+    pub fn intersection(&self, other: &Self) -> Self {
+        PersistentSet(self.0.intersect(&other.0))
+    }
 }
 
 const LEAF_SIZE: usize = 32;
@@ -152,6 +162,13 @@ impl<K, T> Trie<K, T> {
         match self {
             Trie::Leaf(_) => 1,
             Trie::Node(hamt) => hamt.len(),
+        }
+    }
+
+    fn is_leaf(&self) -> bool {
+        match self {
+            Trie::Leaf(_) => true,
+            Trie::Node(_) => false,
         }
     }
 }
@@ -189,6 +206,40 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                     .unwrap(),
             ),
             (Trie::Node(a), Trie::Node(b)) => Trie::Node(a.merge(b, depth)),
+        }
+    }
+
+    fn intersect(&self, other: &Self, depth: u32) -> Option<Self> {
+        match (self, other) {
+            (Trie::Leaf(a), Trie::Leaf(b)) if a.0 == b.0 => Some(other.clone()),
+            (Trie::Leaf(_), Trie::Leaf(_)) => None,
+            (Trie::Leaf(a), Trie::Node(b)) => {
+                b.get(&a.0, hash(&a.0) >> depth).cloned().map(Trie::Leaf)
+            }
+            (Trie::Node(a), Trie::Leaf(b)) => {
+                a.get(&b.0, hash(&b.0) >> depth).map(|_| other.clone())
+            }
+            (Trie::Node(a), Trie::Node(b)) => a._intersect(b, depth),
+        }
+    }
+
+    fn show_diff(&self, other: &Self) {
+        match (self, other) {
+            (Trie::Leaf(a), Trie::Leaf(b)) => {
+                if a.0 != b.0 {
+                    println!("leafs differ")
+                }
+            }
+            (Trie::Node(a), Trie::Node(b)) => {
+                if a.mapping == b.mapping {
+                    for (ax, bx) in a.subtrie.iter().zip(b.subtrie.iter()) {
+                        ax.show_diff(bx)
+                    }
+                } else {
+                    println!("{:32b}\n{:32b}\n", a.mapping, b.mapping)
+                }
+            }
+            _ => todo!(),
         }
     }
 }
@@ -237,7 +288,7 @@ impl<K, T> Hamt<K, T> {
 }
 
 impl<K: Eq + Hash, T> Hamt<K, T> {
-    pub fn get<Q: ?Sized>(&self, key: &Q, k: u64) -> Option<(&K, &T)>
+    pub fn get<Q: ?Sized>(&self, key: &Q, k: u64) -> Option<&Rc<(K, T)>>
     where
         K: Borrow<Q>,
         Q: Hash + Eq,
@@ -249,7 +300,7 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         }
 
         match &self.subtrie[idx_] {
-            Trie::Leaf(rc) if rc.0.borrow() == key => Some((&rc.0, &rc.1)),
+            Trie::Leaf(rc) if rc.0.borrow() == key => Some(rc),
             Trie::Leaf(_) => None,
             Trie::Node(child) => child.get(key, k >> LEAF_BITS),
         }
@@ -356,9 +407,6 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
             return self.clone();
         }
 
-        let a = self.slots();
-        let b = other.slots();
-
         let mut mapping = 0;
         let mut subtrie = vec![];
 
@@ -375,6 +423,50 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         Hamt {
             mapping,
             subtrie: subtrie.into(),
+        }
+    }
+
+    fn intersect(&self, other: &Self) -> Self {
+        match self._intersect(other, 0) {
+            None => Self::new(0, vec![]),
+            Some(Trie::Node(hamt)) => hamt,
+            Some(Trie::Leaf(rc)) => {
+                let k = hash(&rc.0);
+                Hamt::new(0, vec![])
+                    ._insert(rc, k, LEAF_BITS, true)
+                    .unwrap()
+            }
+        }
+    }
+
+    fn _intersect(&self, other: &Self, depth: u32) -> Option<Trie<K, T>> {
+        if self.ptr_eq(other) {
+            return Some(Trie::Node(self.clone()));
+        }
+
+        let mut mapping = 0;
+        let mut subtrie = vec![];
+
+        for ((m, t1), (m2, t2)) in self.slots().zip(other.slots()) {
+            debug_assert_eq!(m, m2);
+            match (t1, t2) {
+                (None, _) => continue,
+                (_, None) => continue,
+                (Some(a), Some(b)) => match a.intersect(b, depth + LEAF_BITS) {
+                    None => continue,
+                    Some(t_) => subtrie.push(t_),
+                },
+            }
+            mapping |= m;
+        }
+
+        match subtrie.len() {
+            0 => None,
+            1 if subtrie[0].is_leaf() => subtrie.pop(),
+            _ => Some(Trie::Node(Hamt {
+                mapping,
+                subtrie: subtrie.into(),
+            })),
         }
     }
 
@@ -649,5 +741,33 @@ mod tests {
         }
 
         assert_eq!(a.merge(&b), e);
+    }
+
+    #[test]
+    fn intersect() {
+        let a = PersistentMap::new().insert("a", 1).insert("b", 2);
+        let b = PersistentMap::new().insert("b", 3).insert("c", 4);
+        let e = PersistentMap::new().insert("b", 3);
+        assert_eq!(a.intersect(&b), e);
+    }
+
+    #[test]
+    fn intersect_big() {
+        let mut a = PersistentMap::new();
+        for i in 0..2000 {
+            a = a.insert(i, -i);
+        }
+        let mut b = PersistentMap::new();
+        for i in 1000..3000 {
+            b = b.insert(i, i);
+        }
+        let mut e = PersistentMap::new();
+        for i in 1000..2000 {
+            e = e.insert(i, i);
+        }
+
+        let c = a.intersect(&b);
+
+        assert_eq!(c, e);
     }
 }
