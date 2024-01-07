@@ -69,14 +69,26 @@ impl<K: Hash + Eq, T> PersistentMap<K, T> {
         self.0.len()
     }
 
+    /// Merge two maps.
+    /// Returns a new map that contains all entries from two maps.
+    /// If a key is present in both maps, the value is taken from `other`.
     #[inline]
     pub fn merge(&self, other: &Self) -> Self {
         PersistentMap(self.0.merge(&other.0, 0))
     }
 
+    /// Set intersection on map keys.
+    /// That is, returns a new map that contains all keys that are also in another map.
     #[inline]
-    pub fn intersect(&self, other: &Self) -> Self {
+    pub fn intersect<U>(&self, other: &PersistentMap<K, U>) -> Self {
         PersistentMap(self.0.intersect(&other.0))
+    }
+
+    /// Set difference on map keys.
+    /// That is, returns a new map that contains all keys that are not contained in another map.
+    #[inline]
+    pub fn difference<U>(&self, other: &PersistentMap<K, U>) -> Self {
+        PersistentMap(self.0.difference(&other.0))
     }
 }
 
@@ -140,6 +152,11 @@ impl<T: Hash + Eq> PersistentSet<T> {
     #[inline]
     pub fn intersection(&self, other: &Self) -> Self {
         PersistentSet(self.0.intersect(&other.0))
+    }
+
+    #[inline]
+    pub fn difference(&self, other: &Self) -> Self {
+        PersistentSet(self.0.difference(&other.0))
     }
 }
 
@@ -209,17 +226,34 @@ impl<K: Eq + Hash, T> Trie<K, T> {
         }
     }
 
-    fn intersect(&self, other: &Self, depth: u32) -> Option<Self> {
+    fn intersect<U>(&self, other: &Trie<K, U>, depth: u32) -> Option<Self> {
         match (self, other) {
-            (Trie::Leaf(a), Trie::Leaf(b)) if a.0 == b.0 => Some(other.clone()),
+            (Trie::Leaf(a), Trie::Leaf(b)) if a.0 == b.0 => Some(self.clone()),
             (Trie::Leaf(_), Trie::Leaf(_)) => None,
             (Trie::Leaf(a), Trie::Node(b)) => {
-                b.get(&a.0, hash(&a.0) >> depth).cloned().map(Trie::Leaf)
+                b.get(&a.0, hash(&a.0) >> depth).map(|_| self.clone())
             }
             (Trie::Node(a), Trie::Leaf(b)) => {
-                a.get(&b.0, hash(&b.0) >> depth).map(|_| other.clone())
+                a.get(&b.0, hash(&b.0) >> depth).cloned().map(Trie::Leaf)
             }
             (Trie::Node(a), Trie::Node(b)) => a._intersect(b, depth),
+        }
+    }
+
+    fn difference<U>(&self, other: &Trie<K, U>, depth: u32) -> Option<Self> {
+        match (self, other) {
+            (Trie::Leaf(a), Trie::Leaf(b)) if a.0 == b.0 => None,
+            (Trie::Leaf(_), Trie::Leaf(_)) => Some(self.clone()),
+            (Trie::Leaf(a), Trie::Node(b)) => match b.get(&a.0, hash(&a.0) >> depth) {
+                None => Some(self.clone()),
+                Some(_) => None,
+            },
+            (Trie::Node(a), Trie::Leaf(b)) => match a.remove_from_node(&b.0, hash(&b.0) >> depth) {
+                NotFound => Some(self.clone()),
+                Removed => None,
+                Replaced(a_) => Some(a_),
+            },
+            (Trie::Node(a), Trie::Node(b)) => a._difference(b, depth),
         }
     }
 
@@ -388,17 +422,24 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
 
             Removed => match &*self.subtrie {
                 [] => unreachable!(),
-                // this non-root node just became empty, so we can remove it
-                [_] => Removed,
-                [_, _] => match &self.subtrie[1 - idx_] {
+                [_] => Removed, // this non-root node just became empty, so we can remove it
+                [_, _] if self.subtrie[1 - idx_].is_leaf() => {
                     // if the only remaining child is a leaf we can replace this non-root node with it
-                    leaf @ Trie::Leaf(_) => Replaced(leaf.clone()),
-                    Trie::Node(_) => Replaced(Trie::Node(self.remove_child(mask_bit, idx_))),
-                },
+                    Replaced(self.subtrie[1 - idx_].clone())
+                }
                 _ => Replaced(Trie::Node(self.remove_child(mask_bit, idx_))),
             },
 
-            Replaced(new_child) => Replaced(Trie::Node(self.replace_child(idx_, new_child))),
+            Replaced(new_child) => {
+                match &*self.subtrie {
+                    [] => unreachable!(),
+                    [_] if new_child.is_leaf() => {
+                        // if the only remaining child is a leaf we can replace this non-root node with it
+                        Replaced(new_child)
+                    }
+                    _ => Replaced(Trie::Node(self.replace_child(idx_, new_child))),
+                }
+            }
         }
     }
 
@@ -426,20 +467,11 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         }
     }
 
-    fn intersect(&self, other: &Self) -> Self {
-        match self._intersect(other, 0) {
-            None => Self::new(0, vec![]),
-            Some(Trie::Node(hamt)) => hamt,
-            Some(Trie::Leaf(rc)) => {
-                let k = hash(&rc.0);
-                Hamt::new(0, vec![])
-                    ._insert(rc, k, LEAF_BITS, true)
-                    .unwrap()
-            }
-        }
+    fn intersect<U>(&self, other: &Hamt<K, U>) -> Self {
+        Self::make_root(self._intersect(other, 0))
     }
 
-    fn _intersect(&self, other: &Self, depth: u32) -> Option<Trie<K, T>> {
+    fn _intersect<U>(&self, other: &Hamt<K, U>, depth: u32) -> Option<Trie<K, T>> {
         if self.ptr_eq(other) {
             return Some(Trie::Node(self.clone()));
         }
@@ -470,9 +502,58 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         }
     }
 
+    fn difference<U>(&self, other: &Hamt<K, U>) -> Self {
+        Self::make_root(self._difference(other, 0))
+    }
+
+    fn _difference<U>(&self, other: &Hamt<K, U>, depth: u32) -> Option<Trie<K, T>> {
+        if self.ptr_eq(other) {
+            return None;
+        }
+
+        let mut mapping = 0;
+        let mut subtrie = vec![];
+
+        for ((m, t1), (m2, t2)) in self.slots().zip(other.slots()) {
+            debug_assert_eq!(m, m2);
+            match (t1, t2) {
+                (Some(a), None) => subtrie.push(a.clone()),
+                (None, _) => continue,
+                (Some(a), Some(b)) => match a.difference(b, depth + LEAF_BITS) {
+                    None => continue,
+                    Some(t_) => subtrie.push(t_),
+                },
+            }
+            mapping |= m;
+        }
+
+        let n = subtrie.len();
+        match n {
+            0 => None,
+            1 if subtrie[0].is_leaf() => subtrie.pop(),
+            _ => Some(Trie::Node(Hamt {
+                mapping,
+                subtrie: subtrie.into(),
+            })),
+        }
+    }
+
+    fn make_root(trie: Option<Trie<K, T>>) -> Hamt<K, T> {
+        match trie {
+            None => Self::new(0, vec![]),
+            Some(Trie::Node(hamt)) => hamt,
+            Some(Trie::Leaf(rc)) => {
+                let k = hash(&rc.0);
+                Hamt::new(0, vec![])
+                    ._insert(rc, k, LEAF_BITS, true)
+                    .unwrap()
+            }
+        }
+    }
+
     #[inline]
-    fn ptr_eq(&self, other: &Self) -> bool {
-        if Rc::ptr_eq(&self.subtrie, &other.subtrie) {
+    fn ptr_eq<U>(&self, other: &Hamt<K, U>) -> bool {
+        if Rc::as_ptr(&self.subtrie) as *const u8 == Rc::as_ptr(&other.subtrie) as *const u8 {
             debug_assert_eq!(self.mapping, other.mapping);
             true
         } else {
@@ -664,7 +745,6 @@ mod tests {
         let z = z.insert("zzzzz", 0);
         let z = z.insert("zzzzzz", 0);
         let z = z.insert("zzzzzzz", 0);
-        println!("{z:?}");
         assert_eq!(z.get(&"zzzzzzz"), Some(&0));
         assert_eq!(z.get(&"x"), Some(&1));
     }
@@ -679,7 +759,6 @@ mod tests {
         assert_eq!(a.get("y"), Some(&2));
         assert_eq!(map.get("x"), Some(&1));
 
-        println!("{a:?}");
         assert_eq!(a.remove("y"), Some(PersistentMap::new()))
     }
 
@@ -746,8 +825,8 @@ mod tests {
     #[test]
     fn intersect() {
         let a = PersistentMap::new().insert("a", 1).insert("b", 2);
-        let b = PersistentMap::new().insert("b", 3).insert("c", 4);
-        let e = PersistentMap::new().insert("b", 3);
+        let b = PersistentMap::new().insert("b", "x").insert("c", "y");
+        let e = PersistentMap::new().insert("b", 2);
         assert_eq!(a.intersect(&b), e);
     }
 
@@ -755,11 +834,11 @@ mod tests {
     fn intersect_big() {
         let mut a = PersistentMap::new();
         for i in 0..2000 {
-            a = a.insert(i, -i);
+            a = a.insert(i, i);
         }
         let mut b = PersistentMap::new();
         for i in 1000..3000 {
-            b = b.insert(i, i);
+            b = b.insert(i, -i);
         }
         let mut e = PersistentMap::new();
         for i in 1000..2000 {
@@ -767,6 +846,35 @@ mod tests {
         }
 
         let c = a.intersect(&b);
+
+        assert_eq!(c, e);
+    }
+
+    #[test]
+    fn difference() {
+        let a = PersistentMap::new().insert("a", 1).insert("b", 2);
+        let b = PersistentMap::new().insert("b", "x").insert("c", "y");
+        let e = PersistentMap::new().insert("a", 1);
+        assert_eq!(a.difference(&a), PersistentMap::new());
+        assert_eq!(a.difference(&b), e);
+    }
+
+    #[test]
+    fn difference_big() {
+        let mut a = PersistentMap::new();
+        for i in 0..200 {
+            a = a.insert(i, i);
+        }
+        let mut b = PersistentMap::new();
+        for i in 100..300 {
+            b = b.insert(i, -i);
+        }
+        let mut e = PersistentMap::new();
+        for i in 0..100 {
+            e = e.insert(i, i);
+        }
+
+        let c = a.difference(&b);
 
         assert_eq!(c, e);
     }
