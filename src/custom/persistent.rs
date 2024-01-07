@@ -90,6 +90,13 @@ impl<K: Hash + Eq, T> PersistentMap<K, T> {
     pub fn difference<U>(&self, other: &PersistentMap<K, U>) -> Self {
         PersistentMap(self.0.difference(&other.0))
     }
+
+    /// Symmetric set difference on map keys.
+    /// That is, returns a new map that contains all keys that are in either map but not in both.
+    #[inline]
+    pub fn symmetric_difference(&self, other: &Self) -> Self {
+        PersistentMap(self.0.symmetric_difference(&other.0))
+    }
 }
 
 impl<K, T> Clone for PersistentMap<K, T> {
@@ -157,6 +164,11 @@ impl<T: Hash + Eq> PersistentSet<T> {
     #[inline]
     pub fn difference(&self, other: &Self) -> Self {
         PersistentSet(self.0.difference(&other.0))
+    }
+
+    #[inline]
+    pub fn symmetric_difference(&self, other: &Self) -> Self {
+        PersistentSet(self.0.symmetric_difference(&other.0))
     }
 }
 
@@ -254,6 +266,16 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                 Replaced(a_) => Some(a_),
             },
             (Trie::Node(a), Trie::Node(b)) => a._difference(b, depth),
+        }
+    }
+
+    fn symmetric_difference(&self, other: &Self, depth: u32) -> Option<Self> {
+        match (self, other) {
+            (Trie::Leaf(a), Trie::Leaf(b)) if a.0 == b.0 => None,
+            (Trie::Leaf(_), Trie::Leaf(_)) => todo!("use both nodes"),
+            (Trie::Leaf(a), Trie::Node(b)) => todo!("remove a from b. if not found, add a to b"),
+            (Trie::Node(a), Trie::Leaf(b)) => todo!("remove b from a. if not found, add b to a"),
+            (Trie::Node(a), Trie::Node(b)) => a._symmetric_difference(b, depth),
         }
     }
 
@@ -520,6 +542,43 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
                 (Some(a), None) => subtrie.push(a.clone()),
                 (None, _) => continue,
                 (Some(a), Some(b)) => match a.difference(b, depth + LEAF_BITS) {
+                    None => continue,
+                    Some(t_) => subtrie.push(t_),
+                },
+            }
+            mapping |= m;
+        }
+
+        let n = subtrie.len();
+        match n {
+            0 => None,
+            1 if subtrie[0].is_leaf() => subtrie.pop(),
+            _ => Some(Trie::Node(Hamt {
+                mapping,
+                subtrie: subtrie.into(),
+            })),
+        }
+    }
+
+    fn symmetric_difference(&self, other: &Self) -> Self {
+        Self::make_root(self._symmetric_difference(other, 0))
+    }
+
+    fn _symmetric_difference(&self, other: &Self, depth: u32) -> Option<Trie<K, T>> {
+        if self.ptr_eq(other) {
+            return None;
+        }
+
+        let mut mapping = 0;
+        let mut subtrie = vec![];
+
+        for ((m, t1), (m2, t2)) in self.slots().zip(other.slots()) {
+            debug_assert_eq!(m, m2);
+            match (t1, t2) {
+                (None, None) => continue,
+                (Some(a), None) => subtrie.push(a.clone()),
+                (None, Some(b)) => subtrie.push(b.clone()),
+                (Some(a), Some(b)) => match a.symmetric_difference(b, depth + LEAF_BITS) {
                     None => continue,
                     Some(t_) => subtrie.push(t_),
                 },
@@ -862,19 +921,51 @@ mod tests {
     #[test]
     fn difference_big() {
         let mut a = PersistentMap::new();
-        for i in 0..200 {
+        for i in 0..2000 {
             a = a.insert(i, i);
         }
         let mut b = PersistentMap::new();
-        for i in 100..300 {
+        for i in 1000..3000 {
             b = b.insert(i, -i);
         }
         let mut e = PersistentMap::new();
-        for i in 0..100 {
+        for i in 0..1000 {
             e = e.insert(i, i);
         }
 
         let c = a.difference(&b);
+
+        assert_eq!(c, e);
+    }
+
+    #[test]
+    fn symmetric_difference() {
+        let a = PersistentMap::new().insert("a", 1).insert("b", 2);
+        let b = PersistentMap::new().insert("b", 3).insert("c", 4);
+        let e = PersistentMap::new().insert("a", 1).insert("c", 4);
+        assert_eq!(a.symmetric_difference(&a), PersistentMap::new());
+        assert_eq!(a.symmetric_difference(&b), e);
+    }
+
+    #[test]
+    fn symmetric_difference_big() {
+        let mut a = PersistentMap::new();
+        for i in 0..2000 {
+            a = a.insert(i, i);
+        }
+        let mut b = PersistentMap::new();
+        for i in 1000..3000 {
+            b = b.insert(i, -i);
+        }
+        let mut e = PersistentMap::new();
+        for i in 0..1000 {
+            e = e.insert(i, i);
+        }
+        for i in 2000..3000 {
+            e = e.insert(i, i);
+        }
+
+        let c = a.symmetric_difference(&b);
 
         assert_eq!(c, e);
     }
