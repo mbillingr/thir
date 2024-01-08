@@ -4,6 +4,7 @@ Implementation of persistent maps with hash array mapped tries.
 Uses reference counting to share structure. This may not be the most efficient way.
 !*/
 
+mod builder_macros;
 mod hamt;
 mod trie;
 
@@ -109,7 +110,7 @@ impl<K, T> Clone for PersistentMap<K, T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct PersistentSet<T>(PersistentMap<T, ()>);
 
 impl<T: Hash + Eq> PersistentSet<T> {
@@ -248,10 +249,11 @@ fn remove<T: Clone>(idx: usize, xs: &[T]) -> Vec<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{map, set};
 
     #[test]
     fn insert_and_retrieve() {
-        let a = PersistentMap::<&str, i8>::new();
+        let a = map![];
         assert_eq!(a.get("x"), None);
 
         let b = a.insert("x", 1);
@@ -277,7 +279,7 @@ mod tests {
     fn remove() {
         assert!(PersistentMap::<&str, i8>::new().remove("x").is_none());
 
-        let map = PersistentMap::new().insert("x", 1).insert("y", 2);
+        let map = map!["x" => 1, "y" => 2];
         let a = map.remove("x").unwrap();
         assert_eq!(a.get("x"), None);
         assert_eq!(a.get("y"), Some(&2));
@@ -319,12 +321,9 @@ mod tests {
 
     #[test]
     fn merge() {
-        let a = PersistentMap::new().insert("a", 1).insert("b", 2);
-        let b = PersistentMap::new().insert("b", 3).insert("c", 4);
-        let e = PersistentMap::new()
-            .insert("a", 1)
-            .insert("b", 3)
-            .insert("c", 4);
+        let a = map!["a" => 1, "b" => 2];
+        let b = map!["b" => 3, "c" => 4];
+        let e = map!["a" => 1, "b" => 3, "c" => 4];
         assert_eq!(a.merge(&b), e);
     }
 
@@ -348,9 +347,9 @@ mod tests {
 
     #[test]
     fn intersect() {
-        let a = PersistentMap::new().insert("a", 1).insert("b", 2);
-        let b = PersistentMap::new().insert("b", "x").insert("c", "y");
-        let e = PersistentMap::new().insert("b", 2);
+        let a = map!["a" => 1, "b" => 2];
+        let b = map!["b" => "x", "c" => "y"];
+        let e = map!["b" => 2];
         assert_eq!(a.intersect(&b), e);
     }
 
@@ -376,9 +375,9 @@ mod tests {
 
     #[test]
     fn difference() {
-        let a = PersistentMap::new().insert("a", 1).insert("b", 2);
-        let b = PersistentMap::new().insert("b", "x").insert("c", "y");
-        let e = PersistentMap::new().insert("a", 1);
+        let a = map!["a" => 1, "b" => 2];
+        let b = map!["b" => "x", "c" => "y"];
+        let e = map!["a" => 1];
         assert_eq!(a.difference(&a), PersistentMap::new());
         assert_eq!(a.difference(&b), e);
     }
@@ -405,9 +404,9 @@ mod tests {
 
     #[test]
     fn symmetric_difference() {
-        let a = PersistentMap::new().insert("a", 1).insert("b", 2);
-        let b = PersistentMap::new().insert("b", 3).insert("c", 4);
-        let e = PersistentMap::new().insert("a", 1).insert("c", 4);
+        let a = map!["a" => 1, "b" => 2];
+        let b = map!["b" => 3, "c" => 4];
+        let e = map!["a" => 1, "c" => 4];
         assert_eq!(a.symmetric_difference(&a), PersistentMap::new());
         assert_eq!(a.symmetric_difference(&b), e);
     }
