@@ -14,7 +14,8 @@ macro_rules! set {
 
 #[cfg(test)]
 mod tests {
-    use crate::custom::persistent::{PersistentMap, PersistentSet};
+    use crate::custom::persistent::persistent_map::PersistentMap;
+    use crate::custom::persistent::persistent_set::PersistentSet;
 
     #[test]
     fn make_map() {

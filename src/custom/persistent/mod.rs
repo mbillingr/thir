@@ -6,180 +6,20 @@ Uses reference counting to share structure. This may not be the most efficient w
 
 mod builder_macros;
 mod hamt;
+mod persistent_map;
+mod persistent_set;
 mod trie;
 
 use hamt::Hamt;
-use std::borrow::Borrow;
+pub use persistent_map::PersistentMap;
+pub use persistent_set::PersistentSet;
 use std::collections::hash_map::DefaultHasher;
-use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use trie::Trie;
 
-#[derive(Debug, PartialEq)]
-pub struct PersistentMap<K, T>(Hamt<K, T>);
-
-impl<K: Hash + Eq, T> PersistentMap<K, T> {
-    #[inline]
-    pub fn new() -> Self {
-        PersistentMap(Hamt::new(0, vec![]))
-    }
-
-    #[inline]
-    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&T>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq,
-    {
-        self.get_pair(key).map(|(_, v)| v)
-    }
-
-    #[inline]
-    pub fn contains_key<Q: ?Sized>(&self, key: &Q) -> bool
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq,
-    {
-        self.get_pair(key).is_some()
-    }
-
-    #[inline]
-    pub fn get_pair<Q: ?Sized>(&self, key: &Q) -> Option<(&K, &T)>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq,
-    {
-        let k = hash(&key);
-        self.0.get(key, k).map(|rc| (&rc.0, &rc.1))
-    }
-
-    #[inline]
-    pub fn insert(&self, key: K, val: T) -> Self {
-        let k = hash(&key);
-        let hamt = self.0.insert(key, val, k);
-        PersistentMap(hamt)
-    }
-
-    #[inline]
-    pub fn remove<Q: ?Sized>(&self, key: &Q) -> Option<Self>
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq,
-    {
-        let k = hash(&key);
-        self.0.remove_from_root(key, k).map(Self)
-    }
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Merge two maps.
-    /// Returns a new map that contains all entries from two maps.
-    /// If a key is present in both maps, the value is taken from `other`.
-    #[inline]
-    pub fn merge(&self, other: &Self) -> Self {
-        PersistentMap(self.0.merge(&other.0))
-    }
-
-    /// Set intersection on map keys.
-    /// That is, returns a new map that contains all keys that are also in another map.
-    #[inline]
-    pub fn intersect<U>(&self, other: &PersistentMap<K, U>) -> Self {
-        PersistentMap(self.0.intersect(&other.0))
-    }
-
-    /// Set difference on map keys.
-    /// That is, returns a new map that contains all keys that are not contained in another map.
-    #[inline]
-    pub fn difference<U>(&self, other: &PersistentMap<K, U>) -> Self {
-        PersistentMap(self.0.difference(&other.0))
-    }
-
-    /// Symmetric set difference on map keys.
-    /// That is, returns a new map that contains all keys that are in either map but not in both.
-    #[inline]
-    pub fn symmetric_difference(&self, other: &Self) -> Self {
-        PersistentMap(self.0.symmetric_difference(&other.0))
-    }
-}
-
-impl<K, T> Clone for PersistentMap<K, T> {
-    fn clone(&self) -> Self {
-        PersistentMap(self.0.clone())
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct PersistentSet<T>(PersistentMap<T, ()>);
-
-impl<T: Hash + Eq> PersistentSet<T> {
-    #[inline]
-    pub fn new() -> Self {
-        PersistentSet(PersistentMap::new())
-    }
-
-    #[inline]
-    pub fn contains<Q: ?Sized>(&self, key: &Q) -> bool
-    where
-        T: Borrow<Q>,
-        Q: Hash + Eq,
-    {
-        self.0.get_pair(key).is_some()
-    }
-
-    #[inline]
-    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&T>
-    where
-        T: Borrow<Q>,
-        Q: Hash + Eq,
-    {
-        self.0.get_pair(key).map(|(k, _)| k)
-    }
-
-    #[inline]
-    pub fn insert(&self, key: T) -> Self {
-        PersistentSet(self.0.insert(key, ()))
-    }
-
-    #[inline]
-    pub fn remove<Q: ?Sized>(&self, key: &Q) -> Option<Self>
-    where
-        T: Borrow<Q>,
-        Q: Hash + Eq,
-    {
-        self.0.remove(key).map(Self)
-    }
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    #[inline]
-    pub fn union(&self, other: &Self) -> Self {
-        PersistentSet(self.0.merge(&other.0))
-    }
-
-    #[inline]
-    pub fn intersection(&self, other: &Self) -> Self {
-        PersistentSet(self.0.intersect(&other.0))
-    }
-
-    #[inline]
-    pub fn difference(&self, other: &Self) -> Self {
-        PersistentSet(self.0.difference(&other.0))
-    }
-
-    #[inline]
-    pub fn symmetric_difference(&self, other: &Self) -> Self {
-        PersistentSet(self.0.symmetric_difference(&other.0))
-    }
-}
-
-const LEAF_SIZE: usize = 32;
-const LEAF_BITS: u32 = LEAF_SIZE.ilog2();
-const LEAF_MASK: u64 = LEAF_SIZE as u64 - 1;
+const NODE_ARRAY_SIZE: usize = 32;
+const NODE_ARRAY_BITS: u32 = NODE_ARRAY_SIZE.ilog2();
+const NODE_ARRAY_MASK: u64 = NODE_ARRAY_SIZE as u64 - 1;
 
 enum RemoveResult<K, T> {
     NotFound,
@@ -191,16 +31,21 @@ fn split<K: Eq + Hash, T>(leaf1: Trie<K, T>, k1: u64, leaf2: Trie<K, T>, k2: u64
     if k1 == 0 && k2 == 0 {
         todo!("ran out of hash bits")
     }
-    let idx1 = k1 & LEAF_MASK;
+    let idx1 = k1 & NODE_ARRAY_MASK;
     let mb1 = 1 << idx1;
 
-    let idx2 = k2 & LEAF_MASK;
+    let idx2 = k2 & NODE_ARRAY_MASK;
     let mb2 = 1 << idx2;
 
     if idx1 == idx2 {
         return Trie::Node(Hamt::new(
             mb1,
-            vec![split(leaf1, k1 >> LEAF_BITS, leaf2, k2 >> LEAF_BITS)],
+            vec![split(
+                leaf1,
+                k1 >> NODE_ARRAY_BITS,
+                leaf2,
+                k2 >> NODE_ARRAY_BITS,
+            )],
         ));
     }
 
@@ -218,38 +63,10 @@ fn hash(x: &(impl Hash + ?Sized)) -> u64 {
     s.finish()
 }
 
-fn insert<T: Clone>(idx: usize, x: T, xs: &[T]) -> Vec<T> {
-    let mut res = Vec::with_capacity(xs.len() + 1);
-    let mut xs = xs.iter().cloned();
-    for _ in 0..idx {
-        res.push(xs.next().unwrap());
-    }
-    res.push(x);
-    res.extend(xs);
-    res
-}
-
-fn replace<T: Clone>(idx: usize, x: T, xs: &[T]) -> Vec<T> {
-    let mut res = xs.to_vec();
-    res[idx] = x;
-    res
-}
-
-fn remove<T: Clone>(idx: usize, xs: &[T]) -> Vec<T> {
-    let mut res = Vec::with_capacity(xs.len() - 1);
-    let mut xs = xs.iter().cloned();
-    for _ in 0..idx {
-        res.push(xs.next().unwrap());
-    }
-    xs.next();
-    res.extend(xs);
-    res
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{map, set};
+    use crate::map;
 
     #[test]
     fn insert_and_retrieve() {

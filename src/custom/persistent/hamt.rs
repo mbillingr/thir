@@ -1,7 +1,7 @@
 use crate::custom::persistent;
 use crate::custom::persistent::trie::Trie;
 use crate::custom::persistent::RemoveResult::{NotFound, Removed, Replaced};
-use crate::custom::persistent::{RemoveResult, LEAF_BITS, LEAF_MASK};
+use crate::custom::persistent::{RemoveResult, NODE_ARRAY_BITS, NODE_ARRAY_MASK};
 use std::borrow::Borrow;
 use std::fmt::{Debug, Formatter};
 use std::hash::Hash;
@@ -51,12 +51,12 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         match &self.subtrie[idx_] {
             Trie::Leaf(rc) if rc.0.borrow() == key => Some(rc),
             Trie::Leaf(_) => None,
-            Trie::Node(child) => child.get(key, k >> LEAF_BITS),
+            Trie::Node(child) => child.get(key, k >> NODE_ARRAY_BITS),
         }
     }
     #[inline]
     pub fn insert(&self, key: K, val: T, k: u64) -> Self {
-        self._insert(Rc::new((key, val)), k, LEAF_BITS, true)
+        self._insert(Rc::new((key, val)), k, NODE_ARRAY_BITS, true)
             .unwrap()
     }
 
@@ -71,7 +71,7 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
 
         let subtrie = if self.is_free(mask_bit) {
             // free slot
-            persistent::insert(idx_, Trie::Leaf(leaf), &self.subtrie).into()
+            insert(idx_, Trie::Leaf(leaf), &self.subtrie).into()
         } else {
             // occupied slot
             let new_child = match &self.subtrie[idx_] {
@@ -84,18 +84,18 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
                 }
                 old_leaf @ Trie::Leaf(rc) => persistent::split(
                     Trie::Leaf(leaf),
-                    k >> LEAF_BITS,
+                    k >> NODE_ARRAY_BITS,
                     old_leaf.clone(),
                     persistent::hash(&rc.0) >> depth,
                 ),
                 Trie::Node(child) => Trie::Node(child._insert(
                     leaf,
-                    k >> LEAF_BITS,
-                    depth + LEAF_BITS,
+                    k >> NODE_ARRAY_BITS,
+                    depth + NODE_ARRAY_BITS,
                     replace_existing,
                 )?),
             };
-            persistent::replace(idx_, new_child, &self.subtrie).into()
+            replace(idx_, new_child, &self.subtrie).into()
         };
         Some(Hamt {
             mapping: self.mapping | mask_bit,
@@ -241,7 +241,7 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
                 (None, None) => None,
                 (Some(a), None) => node_from_self(a),
                 (None, Some(b)) => node_from_other(b),
-                (Some(a), Some(b)) => node_from_both(a, b, depth + LEAF_BITS),
+                (Some(a), Some(b)) => node_from_both(a, b, depth + NODE_ARRAY_BITS),
             };
 
             if let Some(node) = res_child {
@@ -260,7 +260,7 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
             Some(Trie::Leaf(rc)) => {
                 let k = persistent::hash(&rc.0);
                 Hamt::new(0, vec![])
-                    ._insert(rc, k, LEAF_BITS, true)
+                    ._insert(rc, k, NODE_ARRAY_BITS, true)
                     .unwrap()
             }
         }
@@ -283,7 +283,7 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
 
     #[inline]
     fn hash_location(&self, k: u64) -> (u32, usize) {
-        let idx = k & LEAF_MASK;
+        let idx = k & NODE_ARRAY_MASK;
         let mask_bit: u32 = 1 << idx;
         let idx_ = u32::count_ones(self.mapping & (mask_bit - 1)) as usize;
         (mask_bit, idx_)
@@ -292,14 +292,14 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
     fn replace_child(&self, idx: usize, child: Trie<K, T>) -> Self {
         Hamt {
             mapping: self.mapping,
-            subtrie: persistent::replace(idx, child, &self.subtrie).into(),
+            subtrie: replace(idx, child, &self.subtrie).into(),
         }
     }
 
     fn remove_child(&self, mask_bit: u32, idx: usize) -> Self {
         Hamt {
             mapping: self.mapping & !mask_bit,
-            subtrie: persistent::remove(idx, &self.subtrie).into(),
+            subtrie: remove(idx, &self.subtrie).into(),
         }
     }
 
@@ -349,6 +349,34 @@ fn build_trie<K, T>(mapping: u32, mut subtrie: Vec<Trie<K, T>>) -> Option<Trie<K
             subtrie: subtrie.into(),
         })),
     }
+}
+
+fn insert<T: Clone>(idx: usize, x: T, xs: &[T]) -> Vec<T> {
+    let mut res = Vec::with_capacity(xs.len() + 1);
+    let mut xs = xs.iter().cloned();
+    for _ in 0..idx {
+        res.push(xs.next().unwrap());
+    }
+    res.push(x);
+    res.extend(xs);
+    res
+}
+
+fn replace<T: Clone>(idx: usize, x: T, xs: &[T]) -> Vec<T> {
+    let mut res = xs.to_vec();
+    res[idx] = x;
+    res
+}
+
+fn remove<T: Clone>(idx: usize, xs: &[T]) -> Vec<T> {
+    let mut res = Vec::with_capacity(xs.len() - 1);
+    let mut xs = xs.iter().cloned();
+    for _ in 0..idx {
+        res.push(xs.next().unwrap());
+    }
+    xs.next();
+    res.extend(xs);
+    res
 }
 
 pub struct LeafIterator<'a, K, T> {

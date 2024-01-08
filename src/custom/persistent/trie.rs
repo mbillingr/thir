@@ -1,7 +1,7 @@
 use crate::custom::persistent;
 use crate::custom::persistent::hamt::Hamt;
 use crate::custom::persistent::RemoveResult::{NotFound, Removed, Replaced};
-use crate::custom::persistent::{RemoveResult, LEAF_BITS};
+use crate::custom::persistent::{RemoveResult, NODE_ARRAY_BITS};
 use std::borrow::Borrow;
 use std::hash::Hash;
 use std::rc::Rc;
@@ -42,7 +42,7 @@ impl<K: Eq + Hash, T> Trie<K, T> {
         match self {
             Trie::Leaf(rc) if rc.0.borrow() == key => Removed,
             Trie::Leaf(_) => return NotFound,
-            Trie::Node(child) => child.remove_from_node(key, k >> LEAF_BITS),
+            Trie::Node(child) => child.remove_from_node(key, k >> NODE_ARRAY_BITS),
         }
     }
 
@@ -59,7 +59,7 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                 b._insert(
                     a.clone(),
                     persistent::hash(&a.0) >> depth,
-                    depth + LEAF_BITS,
+                    depth + NODE_ARRAY_BITS,
                     false,
                 )
                 .map_or_else(|| other.clone(), Trie::Node),
@@ -68,7 +68,7 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                 ._insert(
                     b.clone(),
                     persistent::hash(&b.0) >> depth,
-                    depth + LEAF_BITS,
+                    depth + NODE_ARRAY_BITS,
                     true,
                 )
                 .map(Trie::Node),
@@ -123,7 +123,7 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                 let k = persistent::hash(&a.0) >> depth;
                 match b.remove_from_node(&a.0, k) {
                     NotFound => b
-                        ._insert(a.clone(), k, depth + LEAF_BITS, false)
+                        ._insert(a.clone(), k, depth + NODE_ARRAY_BITS, false)
                         .map(Trie::Node),
                     Removed => None,
                     Replaced(b_) => Some(b_),
@@ -134,7 +134,7 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                 match a.remove_from_node(&b.0, k >> depth) {
                     NotFound => {
                         let c = a
-                            ._insert(b.clone(), k >> depth, depth + LEAF_BITS, false)
+                            ._insert(b.clone(), k >> depth, depth + NODE_ARRAY_BITS, false)
                             .map(Trie::Node);
                         c
                     }
