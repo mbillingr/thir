@@ -7,6 +7,7 @@ Uses reference counting to share structure. This may not be the most efficient w
 use crate::custom::persistent::RemoveResult::{NotFound, Removed, Replaced};
 use std::borrow::Borrow;
 use std::collections::hash_map::DefaultHasher;
+use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
@@ -272,9 +273,35 @@ impl<K: Eq + Hash, T> Trie<K, T> {
     fn symmetric_difference(&self, other: &Self, depth: u32) -> Option<Self> {
         match (self, other) {
             (Trie::Leaf(a), Trie::Leaf(b)) if a.0 == b.0 => None,
-            (Trie::Leaf(_), Trie::Leaf(_)) => todo!("use both nodes"),
-            (Trie::Leaf(a), Trie::Node(b)) => todo!("remove a from b. if not found, add a to b"),
-            (Trie::Node(a), Trie::Leaf(b)) => todo!("remove b from a. if not found, add b to a"),
+            (Trie::Leaf(a), Trie::Leaf(b)) => Some(split(
+                self.clone(),
+                hash(&a.0) >> depth,
+                other.clone(),
+                hash(&b.0) >> depth,
+            )),
+            (Trie::Leaf(a), Trie::Node(b)) => {
+                let k = hash(&a.0) >> depth;
+                match b.remove_from_node(&a.0, k) {
+                    NotFound => b
+                        ._insert(a.clone(), k, depth + LEAF_BITS, false)
+                        .map(Trie::Node),
+                    Removed => None,
+                    Replaced(b_) => Some(b_),
+                }
+            }
+            (Trie::Node(a), Trie::Leaf(b)) => {
+                let k = hash(&b.0);
+                match a.remove_from_node(&b.0, k >> depth) {
+                    NotFound => {
+                        let c = a
+                            ._insert(b.clone(), k >> depth, depth + LEAF_BITS, false)
+                            .map(Trie::Node);
+                        c
+                    }
+                    Removed => None,
+                    Replaced(a_) => Some(a_),
+                }
+            }
             (Trie::Node(a), Trie::Node(b)) => a._symmetric_difference(b, depth),
         }
     }
@@ -320,10 +347,15 @@ impl<K: PartialEq, T: PartialEq> PartialEq for Trie<K, T> {
 }
 
 /// A Hash array mapped trie node
-#[derive(Debug)]
 struct Hamt<K, T> {
     mapping: u32,
     subtrie: Rc<[Trie<K, T>]>,
+}
+
+impl<K: Debug, T: Debug> Debug for Hamt<K, T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Hamt({:032b}: {:?}", self.mapping, self.subtrie)
+    }
 }
 
 impl<K, T> Hamt<K, T> {
@@ -955,7 +987,7 @@ mod tests {
         }
         let mut b = PersistentMap::new();
         for i in 1000..3000 {
-            b = b.insert(i, -i);
+            b = b.insert(i, i);
         }
         let mut e = PersistentMap::new();
         for i in 0..1000 {
