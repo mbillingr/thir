@@ -191,30 +191,7 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
             return Some(Trie::Node(self.clone()));
         }
 
-        let mut mapping = 0;
-        let mut subtrie = vec![];
-
-        for ((m, t1), (m2, t2)) in self.slots().zip(other.slots()) {
-            debug_assert_eq!(m, m2);
-            match (t1, t2) {
-                (None, _) => continue,
-                (_, None) => continue,
-                (Some(a), Some(b)) => match a.intersect(b, depth + LEAF_BITS) {
-                    None => continue,
-                    Some(t_) => subtrie.push(t_),
-                },
-            }
-            mapping |= m;
-        }
-
-        match subtrie.len() {
-            0 => None,
-            1 if subtrie[0].is_leaf() => subtrie.pop(),
-            _ => Some(Trie::Node(Hamt {
-                mapping,
-                subtrie: subtrie.into(),
-            })),
-        }
+        self.combine(other, depth, |_| None, |_| None, Trie::intersect)
     }
 
     pub fn difference<U>(&self, other: &Hamt<K, U>) -> Self {
@@ -226,31 +203,13 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
             return None;
         }
 
-        let mut mapping = 0;
-        let mut subtrie = vec![];
-
-        for ((m, t1), (m2, t2)) in self.slots().zip(other.slots()) {
-            debug_assert_eq!(m, m2);
-            match (t1, t2) {
-                (Some(a), None) => subtrie.push(a.clone()),
-                (None, _) => continue,
-                (Some(a), Some(b)) => match a.difference(b, depth + LEAF_BITS) {
-                    None => continue,
-                    Some(t_) => subtrie.push(t_),
-                },
-            }
-            mapping |= m;
-        }
-
-        let n = subtrie.len();
-        match n {
-            0 => None,
-            1 if subtrie[0].is_leaf() => subtrie.pop(),
-            _ => Some(Trie::Node(Hamt {
-                mapping,
-                subtrie: subtrie.into(),
-            })),
-        }
+        self.combine(
+            other,
+            depth,
+            |a| Some(a.clone()),
+            |_| None,
+            Trie::difference,
+        )
     }
 
     pub fn symmetric_difference(&self, other: &Self) -> Self {
@@ -262,32 +221,42 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
             return None;
         }
 
+        self.combine(
+            other,
+            depth,
+            |a| Some(a.clone()),
+            |b| Some(b.clone()),
+            Trie::symmetric_difference,
+        )
+    }
+
+    pub fn combine<U>(
+        &self,
+        other: &Hamt<K, U>,
+        depth: u32,
+        node_from_self: impl Fn(&Trie<K, T>) -> Option<Trie<K, T>>,
+        node_from_other: impl Fn(&Trie<K, U>) -> Option<Trie<K, T>>,
+        node_from_both: impl Fn(&Trie<K, T>, &Trie<K, U>, u32) -> Option<Trie<K, T>>,
+    ) -> Option<Trie<K, T>> {
         let mut mapping = 0;
         let mut subtrie = vec![];
 
         for ((m, t1), (m2, t2)) in self.slots().zip(other.slots()) {
             debug_assert_eq!(m, m2);
-            match (t1, t2) {
-                (None, None) => continue,
-                (Some(a), None) => subtrie.push(a.clone()),
-                (None, Some(b)) => subtrie.push(b.clone()),
-                (Some(a), Some(b)) => match a.symmetric_difference(b, depth + LEAF_BITS) {
-                    None => continue,
-                    Some(t_) => subtrie.push(t_),
-                },
+            let res_child = match (t1, t2) {
+                (None, None) => None,
+                (Some(a), None) => node_from_self(a),
+                (None, Some(b)) => node_from_other(b),
+                (Some(a), Some(b)) => node_from_both(a, b, depth + LEAF_BITS),
+            };
+
+            if let Some(node) = res_child {
+                mapping |= m;
+                subtrie.push(node);
             }
-            mapping |= m;
         }
 
-        let n = subtrie.len();
-        match n {
-            0 => None,
-            1 if subtrie[0].is_leaf() => subtrie.pop(),
-            _ => Some(Trie::Node(Hamt {
-                mapping,
-                subtrie: subtrie.into(),
-            })),
-        }
+        build_trie(mapping, subtrie)
     }
 
     fn make_root(trie: Option<Trie<K, T>>) -> Hamt<K, T> {
@@ -374,6 +343,17 @@ impl<K: PartialEq, T: PartialEq> PartialEq for Hamt<K, T> {
             .iter()
             .zip(other.subtrie.iter())
             .all(|(a, b)| a == b)
+    }
+}
+
+fn build_trie<K, T>(mapping: u32, mut subtrie: Vec<Trie<K, T>>) -> Option<Trie<K, T>> {
+    match subtrie.len() {
+        0 => None,
+        1 if subtrie[0].is_leaf() => subtrie.pop(),
+        _ => Some(Trie::Node(Hamt {
+            mapping,
+            subtrie: subtrie.into(),
+        })),
     }
 }
 
