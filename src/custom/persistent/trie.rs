@@ -46,15 +46,15 @@ impl<K: Eq + Hash, T> Trie<K, T> {
         }
     }
 
-    pub fn merge(&self, other: &Self, depth: u32) -> Self {
+    pub fn merge(&self, other: &Self, depth: u32) -> Option<Self> {
         match (self, other) {
-            (Trie::Leaf(a), Trie::Leaf(b)) if a.0 == b.0 => other.clone(),
-            (Trie::Leaf(a), Trie::Leaf(b)) => persistent::split(
+            (Trie::Leaf(a), Trie::Leaf(b)) if a.0 == b.0 => Some(other.clone()),
+            (Trie::Leaf(a), Trie::Leaf(b)) => Some(persistent::split(
                 self.clone(),
                 persistent::hash(&a.0) >> depth,
                 other.clone(),
                 persistent::hash(&b.0) >> depth,
-            ),
+            )),
             (Trie::Leaf(a), Trie::Node(b)) => {
                 match b._insert(
                     a.clone(),
@@ -62,11 +62,11 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                     depth + LEAF_BITS,
                     false,
                 ) {
-                    None => other.clone(),
-                    Some(b_) => Trie::Node(b_),
+                    None => Some(other.clone()),
+                    Some(b_) => Some(Trie::Node(b_)),
                 }
             }
-            (Trie::Node(a), Trie::Leaf(b)) => Trie::Node(
+            (Trie::Node(a), Trie::Leaf(b)) => Some(Trie::Node(
                 a._insert(
                     b.clone(),
                     persistent::hash(&b.0) >> depth,
@@ -74,8 +74,8 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                     true,
                 )
                 .unwrap(),
-            ),
-            (Trie::Node(a), Trie::Node(b)) => Trie::Node(a.merge(b, depth)),
+            )),
+            (Trie::Node(a), Trie::Node(b)) => a._merge(b, depth),
         }
     }
 

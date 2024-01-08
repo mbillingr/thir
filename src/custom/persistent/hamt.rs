@@ -158,28 +158,22 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         }
     }
 
-    pub fn merge(&self, other: &Self, depth: u32) -> Self {
+    pub fn merge(&self, other: &Self) -> Self {
+        Self::make_root(self._merge(other, 0))
+    }
+
+    pub fn _merge(&self, other: &Self, depth: u32) -> Option<Trie<K, T>> {
         if self.ptr_eq(other) {
-            return self.clone();
+            return Some(Trie::Node(self.clone()));
         }
 
-        let mut mapping = 0;
-        let mut subtrie = vec![];
-
-        for ((m, t1), (m2, t2)) in self.slots().zip(other.slots()) {
-            debug_assert_eq!(m, m2);
-            match (t1, t2) {
-                (None, None) => continue,
-                (Some(a), None) => subtrie.push(a.clone()),
-                (None, Some(b)) => subtrie.push(b.clone()),
-                (Some(a), Some(b)) => subtrie.push(a.merge(b, depth + LEAF_BITS)),
-            }
-            mapping |= m;
-        }
-        Hamt {
-            mapping,
-            subtrie: subtrie.into(),
-        }
+        self.combine(
+            other,
+            depth,
+            |a| Some(a.clone()),
+            |b| Some(b.clone()),
+            Trie::merge,
+        )
     }
 
     pub fn intersect<U>(&self, other: &Hamt<K, U>) -> Self {

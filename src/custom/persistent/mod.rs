@@ -78,7 +78,7 @@ impl<K: Hash + Eq, T> PersistentMap<K, T> {
     /// If a key is present in both maps, the value is taken from `other`.
     #[inline]
     pub fn merge(&self, other: &Self) -> Self {
-        PersistentMap(self.0.merge(&other.0, 0))
+        PersistentMap(self.0.merge(&other.0))
     }
 
     /// Set intersection on map keys.
