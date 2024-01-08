@@ -250,4 +250,17 @@ mod tests {
 
         assert_eq!(c, e);
     }
+
+    #[test]
+    fn map() {
+        let a = map!["a" => 2, "b" => 3, "c" => 4];
+        assert_eq!(a.map(&|_, v| v * v), map!["a" => 4, "b" => 9, "c" => 16])
+    }
+
+    #[test]
+    fn map_big() {
+        let a: PersistentMap<_, _> = (0..10000_u64).map(|i| (i, i)).collect();
+        let b: PersistentMap<_, _> = a.iter().map(|(k, i)| (*k, i * i)).collect();
+        assert!(a.map(&|_, i| i * i) == b)
+    }
 }

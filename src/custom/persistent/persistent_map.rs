@@ -90,10 +90,45 @@ impl<K: Hash + Eq, T> PersistentMap<K, T> {
     pub fn symmetric_difference(&self, other: &Self) -> Self {
         PersistentMap(self.0.symmetric_difference(&other.0))
     }
+
+    /// An iterator visiting all key/value pairs in arbitrary order.
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = (&K, &T)> {
+        self.0.leaves().map(|rc| (&rc.0, &rc.1))
+    }
+
+    /// An iterator visiting all keys pairs in arbitrary order.
+    #[inline]
+    pub fn keys(&self) -> impl Iterator<Item = &K> {
+        self.0.leaves().map(|rc| &rc.0)
+    }
+
+    /// An iterator visiting all values pairs in arbitrary order.
+    #[inline]
+    pub fn values(&self) -> impl Iterator<Item = &T> {
+        self.0.leaves().map(|rc| &rc.1)
+    }
+
+    /// Create a new map with transformed values
+    #[inline]
+    pub fn map<U>(&self, f: &impl Fn(&K, &T) -> U) -> PersistentMap<K, U>
+    where
+        K: Clone,
+    {
+        PersistentMap(self.0.map(f))
+    }
 }
 
 impl<K, T> Clone for PersistentMap<K, T> {
     fn clone(&self) -> Self {
         PersistentMap(self.0.clone())
+    }
+}
+
+impl<K: Eq + Hash, T> FromIterator<(K, T)> for PersistentMap<K, T> {
+    fn from_iter<I: IntoIterator<Item = (K, T)>>(iter: I) -> Self {
+        // could this be done more efficient?
+        iter.into_iter()
+            .fold(PersistentMap::new(), |map, (k, v)| map.insert(k, v))
     }
 }

@@ -34,6 +34,23 @@ impl<K, T> Hamt<K, T> {
     pub fn leaves(&self) -> LeafIterator<K, T> {
         LeafIterator::new(&self.subtrie)
     }
+
+    pub fn map<U>(&self, f: &impl Fn(&K, &T) -> U) -> Hamt<K, U>
+    where
+        K: Clone,
+    {
+        Hamt {
+            mapping: self.mapping,
+            subtrie: self
+                .subtrie
+                .iter()
+                .map(|trie| match trie {
+                    Trie::Leaf(rc) => Trie::leaf(rc.0.clone(), f(&rc.0, &rc.1)),
+                    Trie::Node(hamt) => Trie::Node(hamt.map(f)),
+                })
+                .collect(),
+        }
+    }
 }
 
 impl<K: Eq + Hash, T> Hamt<K, T> {

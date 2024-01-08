@@ -67,4 +67,28 @@ impl<T: Hash + Eq> PersistentSet<T> {
     pub fn symmetric_difference(&self, other: &Self) -> Self {
         PersistentSet(self.0.symmetric_difference(&other.0))
     }
+
+    /// An iterator visiting all key/value pairs in arbitrary order.
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.0.keys()
+    }
+}
+
+impl<T> From<PersistentMap<T, ()>> for PersistentSet<T> {
+    fn from(map: PersistentMap<T, ()>) -> Self {
+        PersistentSet(map)
+    }
+}
+
+impl<T> From<PersistentSet<T>> for PersistentMap<T, ()> {
+    fn from(set: PersistentSet<T>) -> Self {
+        set.0
+    }
+}
+
+impl<T: Eq + Hash> FromIterator<T> for PersistentSet<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        PersistentSet(iter.into_iter().map(|k| (k, ())).collect())
+    }
 }
