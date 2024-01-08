@@ -135,10 +135,10 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         match self.subtrie[idx_].remove(key, k) {
             NotFound => NotFound,
 
-            Removed => match &*self.subtrie {
-                [] => unreachable!(),
-                [_] => Removed, // this non-root node just became empty, so we can remove it
-                [_, _] if self.subtrie[1 - idx_].is_leaf() => {
+            Removed => match self.subtrie.len() {
+                0 => unreachable!(),
+                1 => Removed, // this non-root node just became empty, so we can remove it
+                2 if self.subtrie[1 - idx_].is_leaf() => {
                     // if the only remaining child is a leaf we can replace this non-root node with it
                     Replaced(self.subtrie[1 - idx_].clone())
                 }
@@ -146,9 +146,9 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
             },
 
             Replaced(new_child) => {
-                match &*self.subtrie {
-                    [] => unreachable!(),
-                    [_] if new_child.is_leaf() => {
+                match self.subtrie.len() {
+                    0 => unreachable!(),
+                    1 if new_child.is_leaf() => {
                         // if the only remaining child is a leaf we can replace this non-root node with it
                         Replaced(new_child)
                     }

@@ -55,26 +55,23 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                 other.clone(),
                 persistent::hash(&b.0) >> depth,
             )),
-            (Trie::Leaf(a), Trie::Node(b)) => {
-                match b._insert(
+            (Trie::Leaf(a), Trie::Node(b)) => Some(
+                b._insert(
                     a.clone(),
                     persistent::hash(&a.0) >> depth,
                     depth + LEAF_BITS,
                     false,
-                ) {
-                    None => Some(other.clone()),
-                    Some(b_) => Some(Trie::Node(b_)),
-                }
-            }
-            (Trie::Node(a), Trie::Leaf(b)) => Some(Trie::Node(
-                a._insert(
+                )
+                .map_or_else(|| other.clone(), Trie::Node),
+            ),
+            (Trie::Node(a), Trie::Leaf(b)) => a
+                ._insert(
                     b.clone(),
                     persistent::hash(&b.0) >> depth,
                     depth + LEAF_BITS,
                     true,
                 )
-                .unwrap(),
-            )),
+                .map(Trie::Node),
             (Trie::Node(a), Trie::Node(b)) => a._merge(b, depth),
         }
     }
