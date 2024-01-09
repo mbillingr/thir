@@ -1,5 +1,5 @@
 /*!
-Implementation of persistent maps with hash array mapped tries.
+Implementation of persistent data structures (maps and sets) with hash array mapped tries.
 
 Uses reference counting to share structure. This may not be the most efficient way.
 !*/
