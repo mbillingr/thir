@@ -4,6 +4,8 @@
 mod custom;
 mod thir_core;
 
+use crate::thir_core::classes::Class;
+use crate::thir_core::Id;
 use thir_core::assumptions::Assump;
 use thir_core::classes::ClassEnv;
 use thir_core::kinds::Kind;
@@ -21,6 +23,15 @@ fn main() {
     let ce = add_core_classes().apply(&ce).unwrap();
     let ce = add_num_classes().apply(&ce).unwrap();
 
+    let foo_cls: Id = "foo".into();
+    let ce = ce.modify(
+        foo_cls.clone(),
+        Class(
+            vec![].into(),
+            list![Qual(vec![], Pred::IsIn(foo_cls.clone(), Type::t_int()))],
+        ),
+    );
+
     // todo: these should be populated by class declarations
     //       actually, they should be accessed using Expr::Const
     let initial_assumptions = vec![Assump {
@@ -36,6 +47,28 @@ fn main() {
 
     let prog = Program(vec![BindGroup(
         vec![
+            Expl(
+                "foo".into(),
+                Scheme::Forall(
+                    list![Kind::Star],
+                    Qual(
+                        vec![Pred::IsIn("Foo".into(), Type::TGen(0))],
+                        Type::func(Type::TGen(0), Type::t_unit()),
+                    ),
+                ),
+                vec![],
+            ),
+            Expl(
+                "foo".into(),
+                Scheme::Forall(
+                    list![],
+                    Qual(
+                        vec![Pred::IsIn("Foo".into(), Type::t_int())],
+                        Type::func(Type::t_int(), Type::t_unit()),
+                    ),
+                ),
+                vec![],
+            ),
             /*Expl(
                 "foo".into(),
                 Scheme::Forall(List::Nil, Qual(vec![], Type::t_int())),
@@ -90,7 +123,7 @@ fn main() {
                 Scheme::Forall(list![], Qual(vec![], Type::t_int())),
                 vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
             ),*/
-            Expl(
+            /*Expl(
                 "show-int".into(),
                 Scheme::Forall(
                     list![],
@@ -108,7 +141,7 @@ fn main() {
                         Expr::Lit(Literal::Int(42)).into(),
                     ),
                 )],
-            ),
+            ),*/
         ],
         vec![/*vec![
             /*Impl(

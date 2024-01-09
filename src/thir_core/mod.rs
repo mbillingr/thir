@@ -15,5 +15,5 @@ mod type_inference;
 pub mod types;
 mod unification;
 
-type Int = usize;
-type Id = String;
+pub type Int = usize;
+pub type Id = String;

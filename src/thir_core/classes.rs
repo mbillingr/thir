@@ -8,10 +8,10 @@ use std::rc::Rc;
 
 /// A Type class (Interface) contains a list of super classes and a list of instances.
 #[derive(Debug, Clone)]
-struct Class(Rc<Vec<Id>>, List<Inst>);
+pub struct Class(pub Rc<Vec<Id>>, pub List<Inst>);
 
 /// An instance is a type that implements a certain class (interface)
-type Inst = Qual<Pred>;
+pub type Inst = Qual<Pred>;
 
 /// The class environment captures information about defined classes and instances
 /// in a given program.
@@ -51,7 +51,7 @@ impl ClassEnv {
     }
 
     /// add a new or updated class definition
-    fn modify(&self, name: Id, cls: Class) -> Self {
+    pub fn modify(&self, name: Id, cls: Class) -> Self {
         let next = self.classes.clone();
         ClassEnv {
             classes: Rc::new(move |j| if j == &name { Ok(cls.clone()) } else { next(j) }),
