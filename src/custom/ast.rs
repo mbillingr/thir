@@ -18,5 +18,9 @@ struct Interface {
     /// Super-interfaces
     supers: Vec<Id>,
     /// Methods defined by the interface
-    methods: Map<Id, Scheme>,
+    methods: Map<Id, SchemeDecl>,
+}
+
+struct SchemeDecl {
+    // todo
 }
