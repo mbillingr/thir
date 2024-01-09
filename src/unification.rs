@@ -1,4 +1,3 @@
-use crate::kinds::HasKind;
 use crate::substitutions::{Subst, Types};
 use crate::types::{Type, Tyvar};
 
@@ -32,10 +31,6 @@ fn var_bind(u: &Tyvar, t: &Type) -> crate::Result<Subst> {
         Err("occurs check failed")?
     }
 
-    if u.kind() != t.kind() {
-        Err("kinds do not match")?
-    }
-
     Ok(Subst::single(u.clone(), t.clone()))
 }
 
@@ -48,7 +43,7 @@ pub fn matches(a: &Type, b: &Type) -> crate::Result<Subst> {
             sl.merge(&sr)
         }
 
-        (TVar(u), t) if u.kind() == t.kind() => Ok(Subst::single(u.clone(), t.clone())),
+        (TVar(u), t) => Ok(Subst::single(u.clone(), t.clone())),
 
         (TCon(tc1), TCon(tc2)) if tc1 == tc2 => Ok(Subst::null_subst()),
 

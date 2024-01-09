@@ -4,7 +4,6 @@
 mod assumptions;
 mod classes;
 mod instantiate;
-mod kinds;
 mod lists;
 mod predicates;
 mod qualified;
@@ -18,7 +17,6 @@ mod unification;
 
 use crate::assumptions::Assump;
 use crate::classes::ClassEnv;
-use crate::kinds::Kind;
 use crate::predicates::Pred;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
@@ -40,7 +38,7 @@ fn main() {
     let initial_assumptions = vec![Assump {
         i: "show".into(),
         sc: Scheme::Forall(
-            list![Kind::Star],
+            list![()],
             Qual(
                 vec![Pred::IsIn("Show".into(), Type::TGen(0))],
                 Type::func(Type::TGen(0), Type::t_string()),
@@ -63,10 +61,10 @@ fn main() {
                 ),
                 vec![Alt(vec![Pat::PVar("x".into())], Expr::Var("x".into()))],
             ),*/
-            /*Expl(
+            Expl(
                 "ignore-arg".into(),
                 Scheme::Forall(
-                    list![Kind::Star],
+                    list![()],
                     Qual(vec![], Type::func(Type::TGen(0), Type::t_int())),
                 ),
                 vec![Alt(vec![Pat::PWildcard], Expr::Lit(Literal::Int(0)))],
@@ -74,7 +72,7 @@ fn main() {
             Expl(
                 "fst".into(),
                 Scheme::Forall(
-                    list![Kind::Star, Kind::Star],
+                    list![(), ()],
                     Qual(
                         vec![],
                         Type::func(Type::TGen(0), Type::func(Type::TGen(1), Type::TGen(0))),
@@ -88,7 +86,7 @@ fn main() {
             Expl(
                 "snd".into(),
                 Scheme::Forall(
-                    list![Kind::Star, Kind::Star],
+                    list![(), ()],
                     Qual(
                         vec![],
                         Type::func(Type::TGen(0), Type::func(Type::TGen(1), Type::TGen(1))),
@@ -98,7 +96,7 @@ fn main() {
                     vec![Pat::PWildcard, Pat::PVar("x".into())],
                     Expr::Var("x".into()),
                 )],
-            ),*/
+            ),
             /*Expl(
                 "a-const".into(),
                 Scheme::Forall(list![], Qual(vec![], Type::t_int())),

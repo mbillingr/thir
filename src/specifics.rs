@@ -1,63 +1,56 @@
 use crate::classes::EnvTransformer;
-use crate::kinds::Kind;
 use crate::predicates::Pred::IsIn;
 use crate::types::{Tycon, Type};
 
 impl Type {
     /// construct the unit type
     pub fn t_unit() -> Self {
-        Type::TCon(Tycon("()".into(), Kind::Star))
+        Type::TCon(Tycon("()".into()))
     }
 
     /// construct the character type
     pub fn t_char() -> Self {
-        Type::TCon(Tycon("Char".into(), Kind::Star))
+        Type::TCon(Tycon("Char".into()))
     }
 
     /// construct the string type
     pub fn t_string() -> Self {
-        Type::TCon(Tycon("String".into(), Kind::Star))
+        Type::TCon(Tycon("String".into()))
     }
 
     /// construct the int type
     pub fn t_int() -> Self {
-        Type::TCon(Tycon("Int".into(), Kind::Star))
+        Type::TCon(Tycon("Int".into()))
     }
 
     /// construct the integer type
     pub fn t_integer() -> Self {
-        Type::TCon(Tycon("Integer".into(), Kind::Star))
+        Type::TCon(Tycon("Integer".into()))
     }
 
     /// construct the float type
     pub fn t_float() -> Self {
-        Type::TCon(Tycon("Float".into(), Kind::Star))
+        Type::TCon(Tycon("Float".into()))
     }
 
     /// construct the double type
     pub fn t_double() -> Self {
-        Type::TCon(Tycon("Double".into(), Kind::Star))
+        Type::TCon(Tycon("Double".into()))
     }
 
     /// construct the list type constructor
     pub fn t_list() -> Self {
-        Type::TCon(Tycon("[]".into(), Kind::kfun(Kind::Star, Kind::Star)))
+        Type::TCon(Tycon("[]".into()))
     }
 
     /// construct the function type constructor
     pub fn t_arrow() -> Self {
-        Type::TCon(Tycon(
-            "->".into(),
-            Kind::kfun(Kind::Star, Kind::kfun(Kind::Star, Kind::Star)),
-        ))
+        Type::TCon(Tycon("->".into()))
     }
 
     /// construct the 2-tuple type constructor
     pub fn t_tuple2() -> Self {
-        Type::TCon(Tycon(
-            ",".into(),
-            Kind::kfun(Kind::Star, Kind::kfun(Kind::Star, Kind::Star)),
-        ))
+        Type::TCon(Tycon(",".into()))
     }
 
     /// construct a function type

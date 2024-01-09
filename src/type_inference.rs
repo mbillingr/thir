@@ -1,5 +1,4 @@
 use crate::instantiate::Instantiate;
-use crate::kinds::Kind;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
 use crate::substitutions::Subst;
@@ -30,8 +29,8 @@ impl TI {
         Ok(self.ext_subst(u))
     }
 
-    pub fn new_tvar(&mut self, k: Kind) -> Type {
-        let v = Tyvar(enum_id(self.count), k);
+    pub fn new_tvar(&mut self) -> Type {
+        let v = Tyvar(enum_id(self.count));
         self.count += 1;
         Type::TVar(v)
     }
@@ -39,7 +38,7 @@ impl TI {
     pub fn fresh_inst(&mut self, sc: &Scheme) -> Qual<Type> {
         match sc {
             Scheme::Forall(ks, qt) => {
-                let ts: Vec<_> = ks.iter().map(|k| self.new_tvar(k.clone())).collect();
+                let ts: Vec<_> = ks.iter().map(|k| self.new_tvar()).collect();
                 qt.inst(&ts)
             }
         }

@@ -1,6 +1,5 @@
 use crate::assumptions::{find, Assump};
 use crate::classes::ClassEnv;
-use crate::kinds::Kind;
 use crate::lists::{eq_diff, eq_intersect, eq_union, rfold1};
 use crate::predicates::Pred;
 use crate::qualified::Qual;
@@ -27,7 +26,7 @@ fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
         Literal::Rat(_) => {
             // I don't know how useful this is without defaulting...
             // maybe this should result in a specific type (as with Int).
-            let v = ti.new_tvar(Kind::Star);
+            let v = ti.new_tvar();
             Ok((vec![Pred::IsIn("Fractional".into(), v.clone())], v))
         }
     }
@@ -45,7 +44,7 @@ pub enum Pat {
 fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type)> {
     match pat {
         Pat::PVar(i) => {
-            let v = ti.new_tvar(Kind::Star);
+            let v = ti.new_tvar();
             Ok((
                 vec![],
                 vec![Assump {
@@ -57,7 +56,7 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
         }
 
         Pat::PWildcard => {
-            let v = ti.new_tvar(Kind::Star);
+            let v = ti.new_tvar();
             Ok((vec![], vec![], v))
         }
 
@@ -79,7 +78,7 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
         }
 
         Pat::PNpk(i, _) => {
-            let t = ti.new_tvar(Kind::Star);
+            let t = ti.new_tvar();
             Ok((
                 vec![Pred::IsIn("Integral".into(), t.clone())],
                 vec![Assump {
@@ -92,7 +91,7 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
 
         Pat::PCon(Assump { sc, .. }, pats) => {
             let (mut ps, as_, ts) = ti_pats(ti, pats)?;
-            let t_ = ti.new_tvar(Kind::Star);
+            let t_ = ti.new_tvar();
             let Qual(qs, t) = ti.fresh_inst(sc);
             let f = ts
                 .into_iter()
@@ -154,7 +153,7 @@ fn ti_expr(
         Expr::App(e, f) => {
             let (mut ps, te) = ti_expr(ti, ce, ass, e)?;
             let (qs, tf) = ti_expr(ti, ce, ass, f)?;
-            let t = ti.new_tvar(Kind::Star);
+            let t = ti.new_tvar();
             ti.unify(&Type::func(tf, t.clone()), &te)?;
             ps.extend(qs);
             Ok((ps, t))
@@ -271,7 +270,7 @@ fn ti_impls(
     ass: &[Assump],
     bs: &Vec<Impl>,
 ) -> crate::Result<(Vec<Pred>, Vec<Assump>)> {
-    let ts: Vec<_> = bs.iter().map(|_| ti.new_tvar(Kind::Star)).collect();
+    let ts: Vec<_> = bs.iter().map(|_| ti.new_tvar()).collect();
     let is = || bs.iter().map(|Impl(i, _)| i.clone());
     let scs = ts.iter().cloned().map(Type::to_scheme);
     let as_: Vec<_> = is()
