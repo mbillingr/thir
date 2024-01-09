@@ -1,7 +1,6 @@
 // This is "Typying Haskell in Rust", based on "Typing Haskell in Haskell":
 // https://web.cecs.pdx.edu/~mpj/thih/thih.pdf?_gl=1*1kpcq97*_ga*MTIwMTgwNTIxMS4xNzAyMzAzNTg2*_ga_G56YW5RFXN*MTcwMjMwMzU4NS4xLjAuMTcwMjMwMzU4NS4wLjAuMA..
 
-mod ambiguity;
 mod assumptions;
 mod classes;
 mod instantiate;

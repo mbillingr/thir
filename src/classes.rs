@@ -17,14 +17,12 @@ type Inst = Qual<Pred>;
 /// in a given program.
 pub struct ClassEnv {
     classes: Rc<dyn Fn(&Id) -> crate::Result<Class>>,
-    defaults: List<Type>,
 }
 
 impl Default for ClassEnv {
     fn default() -> Self {
         ClassEnv {
             classes: Rc::new(|i| Err(format!("class {i} not defined"))?),
-            defaults: list![Type::t_int(), Type::t_double()],
         }
     }
 }
@@ -40,11 +38,6 @@ impl ClassEnv {
         (self.classes)(name).unwrap().1
     }
 
-    /// iterate over defaultable types
-    pub fn defaults(&self) -> impl Iterator<Item = &Type> {
-        self.defaults.iter()
-    }
-
     /// test if a class is defined
     pub fn is_defined(&self, name: &Id) -> bool {
         (self.classes)(name).is_ok()
@@ -55,7 +48,6 @@ impl ClassEnv {
         let next = self.classes.clone();
         ClassEnv {
             classes: Rc::new(move |j| if j == &name { Ok(cls.clone()) } else { next(j) }),
-            defaults: self.defaults.clone(),
         }
     }
 

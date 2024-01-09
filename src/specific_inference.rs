@@ -1,4 +1,3 @@
-use crate::ambiguity::{default_subst, defaulted_preds};
 use crate::assumptions::{find, Assump};
 use crate::classes::ClassEnv;
 use crate::kinds::Kind;
@@ -24,11 +23,10 @@ fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
     match l {
         Literal::Char(_) => Ok((vec![], Type::t_char())),
         Literal::Str(_) => Ok((vec![], Type::t_string())),
-        Literal::Int(_) => {
-            let v = ti.new_tvar(Kind::Star);
-            Ok((vec![Pred::IsIn("Num".into(), v.clone())], v))
-        }
+        Literal::Int(_) => Ok((vec![], Type::t_int())),
         Literal::Rat(_) => {
+            // I don't know how useful this is without defaulting...
+            // maybe this should result in a specific type (as with Int).
             let v = ti.new_tvar(Kind::Star);
             Ok((vec![Pred::IsIn("Fractional".into(), v.clone())], v))
         }
@@ -215,13 +213,9 @@ fn split(
     ps: &[Pred],
 ) -> crate::Result<(Vec<Pred>, Vec<Pred>)> {
     let ps_ = ce.reduce(ps)?;
-    let (ds, rs): (Vec<_>, _) = ps_
+    Ok(ps_
         .into_iter()
-        .partition(|p| p.tv().iter().all(|tv| fs.contains(tv)));
-    let mut fsgs = vec![];
-    fsgs.extend(fs.iter().chain(gs.iter()).cloned());
-    let rs_ = defaulted_preds(ce, fsgs, &rs)?;
-    Ok((ds, eq_diff(rs, rs_)))
+        .partition(|p| p.tv().iter().all(|tv| fs.contains(tv))))
 }
 
 /// Explicitly typed binding
@@ -385,7 +379,5 @@ pub fn ti_program(
     //println!("{:#?}", ps);
     //println!("{:#?}", as_);
     let s = &ti.get_subst();
-    let rs = ce.reduce(&s.apply(&ps))?;
-    let s_ = default_subst(ce, vec![], &rs)?;
-    Ok(s_.compose(s).apply(&as_))
+    Ok(s.apply(&as_))
 }
