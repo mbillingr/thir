@@ -1,13 +1,13 @@
 use crate::custom::persistent;
 use crate::custom::persistent::hamt::Hamt;
-use crate::custom::persistent::RemoveResult::{NotFound, Removed, Replaced};
+use crate::custom::persistent::RemoveResult::{NoChange, NotFound, Removed, Replaced};
 use crate::custom::persistent::{RemoveResult, NODE_ARRAY_BITS};
 use std::borrow::Borrow;
 use std::hash::Hash;
 use std::rc::Rc;
 
 /// A node in an hash array mapped trie
-#[derive(Debug)]
+#[derive(Debug, Eq)]
 pub enum Trie<K, T> {
     Leaf(Rc<(K, T)>),
     Node(Hamt<K, T>),
@@ -103,6 +103,7 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                 match a.remove_from_node(&b.0, persistent::hash(&b.0) >> depth) {
                     NotFound => Some(self.clone()),
                     Removed => None,
+                    NoChange => todo!(),
                     Replaced(a_) => Some(a_),
                 }
             }
@@ -126,6 +127,7 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                         ._insert(a.clone(), k, depth + NODE_ARRAY_BITS, false)
                         .map(Trie::Node),
                     Removed => None,
+                    NoChange => todo!(),
                     Replaced(b_) => Some(b_),
                 }
             }
@@ -139,6 +141,7 @@ impl<K: Eq + Hash, T> Trie<K, T> {
                         c
                     }
                     Removed => None,
+                    NoChange => todo!(),
                     Replaced(a_) => Some(a_),
                 }
             }

@@ -1,6 +1,6 @@
 use crate::custom::persistent;
 use crate::custom::persistent::trie::Trie;
-use crate::custom::persistent::RemoveResult::{NotFound, Removed, Replaced};
+use crate::custom::persistent::RemoveResult::{NoChange, NotFound, Removed, Replaced};
 use crate::custom::persistent::{RemoveResult, NODE_ARRAY_BITS, NODE_ARRAY_MASK};
 use std::borrow::Borrow;
 use std::fmt::{Debug, Formatter};
@@ -8,6 +8,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 /// A Hash array mapped trie node
+#[derive(Eq)]
 pub struct Hamt<K, T> {
     mapping: u32,
     subtrie: Rc<[Trie<K, T>]>,
@@ -25,6 +26,10 @@ impl<K, T> Hamt<K, T> {
             mapping,
             subtrie: children.into(),
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.mapping == 0
     }
 
     pub fn len(&self) -> usize {
@@ -50,6 +55,120 @@ impl<K, T> Hamt<K, T> {
                 })
                 .collect(),
         }
+    }
+
+    #[inline]
+    pub fn ptr_eq<U>(&self, other: &Hamt<K, U>) -> bool {
+        if Rc::as_ptr(&self.subtrie) as *const u8 == Rc::as_ptr(&other.subtrie) as *const u8 {
+            debug_assert_eq!(self.mapping, other.mapping);
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn combine<U>(
+        &self,
+        other: &Hamt<K, U>,
+        depth: u32,
+        node_from_self: impl Fn(&Trie<K, T>) -> Option<Trie<K, T>>,
+        node_from_other: impl Fn(&Trie<K, U>) -> Option<Trie<K, T>>,
+        node_from_both: impl Fn(&Trie<K, T>, &Trie<K, U>, u32) -> Option<Trie<K, T>>,
+    ) -> Option<Trie<K, T>> {
+        let mut mapping = 0;
+        let mut subtrie = vec![];
+
+        for ((m, t1), (m2, t2)) in self.slots().zip(other.slots()) {
+            debug_assert_eq!(m, m2);
+            let res_child = match (t1, t2) {
+                (None, None) => None,
+                (Some(a), None) => node_from_self(a),
+                (None, Some(b)) => node_from_other(b),
+                (Some(a), Some(b)) => node_from_both(a, b, depth + NODE_ARRAY_BITS),
+            };
+
+            if let Some(node) = res_child {
+                mapping |= m;
+                subtrie.push(node);
+            }
+        }
+
+        build_trie(mapping, subtrie)
+    }
+
+    pub fn filter(&self, f: &impl Fn(&K, &T) -> bool) -> Self {
+        match self._filter(f, true) {
+            NoChange => self.clone(),
+            Replaced(Trie::Node(root)) => root,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn _filter(&self, f: &impl Fn(&K, &T) -> bool, is_root: bool) -> RemoveResult<K, T> {
+        let mut mapping = 0;
+        let mut subtrie: Vec<Trie<_, _>> = vec![];
+        let mut any_changes = false;
+
+        for (m, t) in self.slots() {
+            match t {
+                None => continue,
+
+                Some(node @ Trie::Leaf(rc)) => {
+                    if f(&rc.0, &rc.1) {
+                        mapping |= m;
+                        subtrie.push(node.clone());
+                    } else {
+                        any_changes = true;
+                    }
+                }
+
+                Some(node @ Trie::Node(hamt)) => match hamt._filter(f, false) {
+                    NotFound => unreachable!(),
+                    NoChange => {
+                        mapping |= m;
+                        subtrie.push(node.clone());
+                    }
+                    Removed => any_changes = true,
+                    Replaced(node) => {
+                        mapping |= m;
+                        subtrie.push(node.clone());
+                        any_changes = true;
+                    }
+                },
+            }
+        }
+
+        if any_changes {
+            match (is_root, subtrie.len()) {
+                (false, 0) => Removed,
+                (false, 1) if subtrie[0].is_leaf() => subtrie.pop().map(Replaced).unwrap(),
+                _ => Replaced(Trie::Node(Hamt {
+                    mapping,
+                    subtrie: subtrie.into(),
+                })),
+            }
+        } else {
+            NoChange
+        }
+    }
+
+    fn slots(&self) -> impl Iterator<Item = (u32, Option<&Trie<K, T>>)> {
+        let mut children = self.subtrie.iter();
+        (0..32).map(|idx| 1 << idx).map(move |bm| {
+            (
+                bm,
+                if self.is_free(bm) {
+                    None
+                } else {
+                    children.next()
+                },
+            )
+        })
+    }
+
+    #[inline]
+    fn is_free(&self, mask_bit: u32) -> bool {
+        self.mapping & mask_bit == 0
     }
 }
 
@@ -134,6 +253,7 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         // we always keep the root array, even if it's empty
         match self.subtrie[idx_].remove(key, k) {
             NotFound => None,
+            NoChange => todo!(),
             Removed => Some(self.remove_child(mask_bit, idx_)),
             Replaced(new_child) => Some(self.replace_child(idx_, new_child)),
         }
@@ -151,6 +271,8 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
 
         match self.subtrie[idx_].remove(key, k) {
             NotFound => NotFound,
+
+            NoChange => todo!(),
 
             Removed => match self.subtrie.len() {
                 0 => unreachable!(),
@@ -241,35 +363,6 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
         )
     }
 
-    pub fn combine<U>(
-        &self,
-        other: &Hamt<K, U>,
-        depth: u32,
-        node_from_self: impl Fn(&Trie<K, T>) -> Option<Trie<K, T>>,
-        node_from_other: impl Fn(&Trie<K, U>) -> Option<Trie<K, T>>,
-        node_from_both: impl Fn(&Trie<K, T>, &Trie<K, U>, u32) -> Option<Trie<K, T>>,
-    ) -> Option<Trie<K, T>> {
-        let mut mapping = 0;
-        let mut subtrie = vec![];
-
-        for ((m, t1), (m2, t2)) in self.slots().zip(other.slots()) {
-            debug_assert_eq!(m, m2);
-            let res_child = match (t1, t2) {
-                (None, None) => None,
-                (Some(a), None) => node_from_self(a),
-                (None, Some(b)) => node_from_other(b),
-                (Some(a), Some(b)) => node_from_both(a, b, depth + NODE_ARRAY_BITS),
-            };
-
-            if let Some(node) = res_child {
-                mapping |= m;
-                subtrie.push(node);
-            }
-        }
-
-        build_trie(mapping, subtrie)
-    }
-
     fn make_root(trie: Option<Trie<K, T>>) -> Hamt<K, T> {
         match trie {
             None => Self::new(0, vec![]),
@@ -281,21 +374,6 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
                     .unwrap()
             }
         }
-    }
-
-    #[inline]
-    fn ptr_eq<U>(&self, other: &Hamt<K, U>) -> bool {
-        if Rc::as_ptr(&self.subtrie) as *const u8 == Rc::as_ptr(&other.subtrie) as *const u8 {
-            debug_assert_eq!(self.mapping, other.mapping);
-            true
-        } else {
-            false
-        }
-    }
-
-    #[inline]
-    fn is_free(&self, mask_bit: u32) -> bool {
-        self.mapping & mask_bit == 0
     }
 
     #[inline]
@@ -318,20 +396,6 @@ impl<K: Eq + Hash, T> Hamt<K, T> {
             mapping: self.mapping & !mask_bit,
             subtrie: remove(idx, &self.subtrie).into(),
         }
-    }
-
-    fn slots(&self) -> impl Iterator<Item = (u32, Option<&Trie<K, T>>)> {
-        let mut children = self.subtrie.iter();
-        (0..32).map(|idx| 1 << idx).map(move |bm| {
-            (
-                bm,
-                if self.is_free(bm) {
-                    None
-                } else {
-                    children.next()
-                },
-            )
-        })
     }
 }
 

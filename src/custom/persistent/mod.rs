@@ -24,6 +24,7 @@ const NODE_ARRAY_MASK: u64 = NODE_ARRAY_SIZE as u64 - 1;
 enum RemoveResult<K, T> {
     NotFound,
     Removed,
+    NoChange,
     Replaced(Trie<K, T>),
 }
 
@@ -66,7 +67,21 @@ fn hash(x: &(impl Hash + ?Sized)) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::map;
+    use crate::{map, set};
+
+    #[test]
+    fn debug_fmt() {
+        assert_eq!(format!("{:?}", map!["a"=>0]), "{\"a\": 0}");
+        assert_eq!(format!("{:?}", map![1=>2, 3=>4]), "{1: 2, 3: 4}");
+        assert_eq!(
+            format!("{:#?}", map![1=>2, 3=>4]),
+            "{\n    1: 2,\n    3: 4,\n}"
+        );
+
+        assert_eq!(format!("{:?}", set!["a"]), "{\"a\"}");
+        assert_eq!(format!("{:?}", set![1, 2, 3]), "{1, 2, 3}");
+        assert_eq!(format!("{:#?}", set![0]), "{\n    0,\n}");
+    }
 
     #[test]
     fn insert_and_retrieve() {
@@ -262,5 +277,34 @@ mod tests {
         let a: PersistentMap<_, _> = (0..10000_u64).map(|i| (i, i)).collect();
         let b: PersistentMap<_, _> = a.iter().map(|(k, i)| (*k, i * i)).collect();
         assert!(a.map(&|_, i| i * i) == b)
+    }
+
+    #[test]
+    fn filter() {
+        let a = map!["a" => 2, "b" => 3, "c" => 4];
+        assert_eq!(a.filter(&|_, _| false), map![]);
+        assert!(a.filter(&|_, _| true).ptr_eq(&a));
+        assert_eq!(a.filter(&|_, v| v % 2 == 0), map!["a" => 2, "c" => 4]);
+    }
+
+    #[test]
+    fn filter_big() {
+        let a: PersistentMap<_, _> = (0..10000).map(|i| (i, i)).collect();
+        let b: PersistentMap<_, _> = (0..10000).filter(|i| i % 2 == 0).map(|i| (i, i)).collect();
+        assert_eq!(a.filter(&|_, _| false), map![]);
+        assert!(a.filter(&|_, _| true).ptr_eq(&a));
+        assert_eq!(a.filter(&|_, v| v % 2 == 0), b);
+    }
+
+    #[test]
+    fn equality() {
+        let a = map!["x" => 1, "y" => 2];
+        let b = map!["x" => 1, "y" => 2];
+
+        assert!(a.ptr_eq(&a));
+        assert!(b.ptr_eq(&b));
+        assert!(!a.ptr_eq(&b));
+
+        assert!(a.eq(&b));
     }
 }

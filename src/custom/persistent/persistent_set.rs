@@ -1,23 +1,64 @@
+use crate::custom::persistent::persistent_map;
 use crate::custom::persistent::persistent_map::PersistentMap;
 use std::borrow::Borrow;
+use std::fmt::{Debug, Formatter};
 use std::hash::Hash;
 
-#[derive(Debug, PartialEq)]
+#[derive(Default, Eq, PartialEq)]
 pub struct PersistentSet<T>(PersistentMap<T, ()>);
 
-impl<T: Hash + Eq> PersistentSet<T> {
+impl<T> PersistentSet<T> {
     #[inline]
     pub fn new() -> Self {
         PersistentSet(PersistentMap::new())
     }
 
     #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Fast comparison, returns `true` if two sets are the *same*.
+    /// This is faster than structural comparison (`eq`, `==`) but less precise. If `ptr_eq` returns `true`,
+    /// both sets are guaranteed to be equal. However, if it returns `false`, they may still be equal.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let a = set!["x", "y"];
+    /// let b = set!["x", "y"];
+    ///
+    /// assert!(a.ptr_eq(&a));
+    /// assert!(b.ptr_eq(&b));
+    /// assert!(!a.ptr_eq(&b));
+    ///
+    /// assert!(a.eq(&b));
+    /// ```   
+    #[inline]
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        self.0.ptr_eq(&other.0)
+    }
+
+    /// An iterator visiting all key/value pairs in arbitrary order.
+    #[inline]
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.0.keys()
+    }
+}
+
+impl<T: Hash + Eq> PersistentSet<T> {
+    #[inline]
     pub fn contains<Q: ?Sized>(&self, key: &Q) -> bool
     where
         T: Borrow<Q>,
         Q: Hash + Eq,
     {
-        self.0.get_pair(key).is_some()
+        self.0.get_key_value(key).is_some()
     }
 
     #[inline]
@@ -26,7 +67,7 @@ impl<T: Hash + Eq> PersistentSet<T> {
         T: Borrow<Q>,
         Q: Hash + Eq,
     {
-        self.0.get_pair(key).map(|(k, _)| k)
+        self.0.get_key_value(key).map(|(k, _)| k)
     }
 
     #[inline]
@@ -41,11 +82,6 @@ impl<T: Hash + Eq> PersistentSet<T> {
         Q: Hash + Eq,
     {
         self.0.remove(key).map(Self)
-    }
-
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
     }
 
     #[inline]
@@ -68,10 +104,19 @@ impl<T: Hash + Eq> PersistentSet<T> {
         PersistentSet(self.0.symmetric_difference(&other.0))
     }
 
-    /// An iterator visiting all key/value pairs in arbitrary order.
+    /// Create a new subset with elements selected by a predicate
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.0.keys()
+    pub fn filter(&self, f: &impl Fn(&T) -> bool) -> Self
+    where
+        T: Clone,
+    {
+        PersistentSet(self.0.filter(&|k, _| f(k)))
+    }
+}
+
+impl<T: Debug> Debug for PersistentSet<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_set().entries(self.iter()).finish()
     }
 }
 
@@ -90,5 +135,24 @@ impl<T> From<PersistentSet<T>> for PersistentMap<T, ()> {
 impl<T: Eq + Hash> FromIterator<T> for PersistentSet<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         PersistentSet(iter.into_iter().map(|k| (k, ())).collect())
+    }
+}
+
+impl<'a, T: Eq + Hash> IntoIterator for &'a PersistentSet<T> {
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Iter(self.0.iter())
+    }
+}
+
+pub struct Iter<'a, T>(persistent_map::Iter<'a, T, ()>);
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|(k, _)| k)
     }
 }
