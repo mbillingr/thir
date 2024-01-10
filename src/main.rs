@@ -37,7 +37,7 @@ fn main() {
     let initial_assumptions = vec![Assump {
         i: "show".into(),
         sc: Scheme::Forall(
-            list![Kind::Star],
+            vec![Kind::Star],
             Qual(
                 vec![Pred::IsIn("Show".into(), Type::TGen(0))],
                 Type::func(Type::TGen(0), Type::t_string()),
@@ -50,7 +50,7 @@ fn main() {
             Expl(
                 "foo".into(),
                 Scheme::Forall(
-                    list![Kind::Star],
+                    vec![Kind::Star],
                     Qual(
                         vec![Pred::IsIn("Foo".into(), Type::TGen(0))],
                         Type::func(Type::TGen(0), Type::t_unit()),
@@ -61,7 +61,7 @@ fn main() {
             Expl(
                 "foo".into(),
                 Scheme::Forall(
-                    list![],
+                    vec![],
                     Qual(
                         vec![Pred::IsIn("Foo".into(), Type::t_int())],
                         Type::func(Type::t_int(), Type::t_unit()),

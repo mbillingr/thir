@@ -7,7 +7,7 @@ use crate::thir_core::Int;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Scheme {
-    Forall(List<Kind>, Qual<Type>),
+    Forall(Vec<Kind>, Qual<Type>),
 }
 
 impl Types for Scheme {
@@ -40,6 +40,6 @@ impl Scheme {
 
 impl Type {
     pub fn to_scheme(self) -> Scheme {
-        Scheme::Forall(List::Nil, Qual(vec![], self))
+        Scheme::Forall(vec![], Qual(vec![], self))
     }
 }
