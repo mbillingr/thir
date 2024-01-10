@@ -3,11 +3,12 @@ Types
 !*/
 use crate::thir_core::kinds::{HasKind, Kind};
 use crate::thir_core::{Id, Int};
+use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
 /// The type of a value
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Deserialize, PartialEq)]
 pub enum Type {
     /// A type variable
     TVar(Tyvar),
@@ -35,11 +36,11 @@ impl Debug for Type {
 }
 
 /// A type variable
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Tyvar(pub Id, pub Kind);
 
 /// A type constant
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct Tycon(pub Id, pub Kind);
 
 impl Type {

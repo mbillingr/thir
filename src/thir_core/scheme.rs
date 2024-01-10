@@ -1,11 +1,11 @@
 use crate::thir_core::kinds::{HasKind, Kind};
-use crate::thir_core::lists::List;
 use crate::thir_core::qualified::Qual;
 use crate::thir_core::substitutions::{Subst, Types};
 use crate::thir_core::types::{Type, Tyvar};
 use crate::thir_core::Int;
+use serde::Deserialize;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub enum Scheme {
     Forall(Vec<Kind>, Qual<Type>),
 }

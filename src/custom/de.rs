@@ -14,7 +14,14 @@ use serde::{Deserialize, Deserializer};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::custom::persistent::PersistentMap;
     use crate::custom::serde_src;
+    use crate::map;
+    use crate::thir_core::kinds::Kind::Star;
+    use crate::thir_core::qualified::Qual;
+    use crate::thir_core::scheme::Scheme;
+    use crate::thir_core::scheme::Scheme::Forall;
+    use crate::thir_core::types::{Tycon, Type};
     use serde_json;
 
     #[test]
@@ -52,12 +59,16 @@ mod tests {
                 methods: Map::default(),
             }
         );
+
         assert_eq!(
-            serde_src::from_str::<ast::Interface>("interface Foo ( ) { }").unwrap(),
+            serde_src::from_str::<ast::Interface>(
+                "interface Foo ( Bar Baz ) { foo Forall [ ] [ [ ] TCon [ bla Star ] ] }"
+            )
+            .unwrap(),
             ast::Interface {
                 name: ast::Id::new("Foo"),
-                supers: vec![],
-                methods: Map::default(),
+                supers: vec![ast::Id::new("Bar"), ast::Id::new("Baz")],
+                methods: map![ast::Id::new("foo") => Forall(vec![], Qual(vec![], Type::TCon(Tycon("bla".into(), Star))))],
             }
         );
     }

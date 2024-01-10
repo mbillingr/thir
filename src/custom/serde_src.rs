@@ -1,4 +1,6 @@
-use serde::de::{DeserializeSeed, Error as SerdeError, MapAccess, SeqAccess, Visitor};
+use serde::de::{
+    DeserializeSeed, EnumAccess, Error as SerdeError, MapAccess, SeqAccess, VariantAccess, Visitor,
+};
 use serde::{de, Deserialize};
 use std::fmt::{Debug, Display, Formatter};
 
@@ -280,7 +282,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_seq(visitor)
     }
 
     fn deserialize_map<V>(mut self, visitor: V) -> std::result::Result<V::Value, Self::Error>
@@ -324,14 +326,14 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        todo!()
+        visitor.visit_enum(self)
     }
 
     fn deserialize_identifier<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        self.deserialize_str(visitor)
     }
 
     fn deserialize_ignored_any<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
@@ -377,5 +379,52 @@ impl<'de> MapAccess<'de> for Deserializer<'de> {
         V: DeserializeSeed<'de>,
     {
         seed.deserialize(self)
+    }
+}
+
+impl<'de> EnumAccess<'de> for &mut Deserializer<'de> {
+    type Error = Error;
+    type Variant = Self;
+
+    fn variant_seed<V>(self, seed: V) -> std::result::Result<(V::Value, Self::Variant), Self::Error>
+    where
+        V: DeserializeSeed<'de>,
+    {
+        let val = seed.deserialize(&mut *self)?;
+        Ok((val, self))
+    }
+}
+
+impl<'de> VariantAccess<'de> for &mut Deserializer<'de> {
+    type Error = Error;
+
+    fn unit_variant(self) -> std::result::Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn newtype_variant_seed<T>(self, seed: T) -> std::result::Result<T::Value, Self::Error>
+    where
+        T: DeserializeSeed<'de>,
+    {
+        seed.deserialize(self)
+    }
+
+    fn tuple_variant<V>(self, len: usize, visitor: V) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        //de::Deserializer::deserialize_seq(self, visitor)
+        visitor.visit_seq(self)
+    }
+
+    fn struct_variant<V>(
+        self,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        todo!()
     }
 }

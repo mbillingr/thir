@@ -2,10 +2,11 @@ use crate::thir_core::lists::eq_union;
 use crate::thir_core::predicates::Pred;
 use crate::thir_core::substitutions::{Subst, Types};
 use crate::thir_core::types::Tyvar;
+use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
 
 /// A qualified type is restricted by a list of predicates.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Deserialize, PartialEq)]
 pub struct Qual<T>(pub Vec<Pred>, pub T);
 
 impl<T: Debug> Debug for Qual<T> {

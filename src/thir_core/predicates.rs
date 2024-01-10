@@ -2,9 +2,10 @@ use crate::thir_core::substitutions::{Subst, Types};
 use crate::thir_core::types::{Type, Tyvar};
 use crate::thir_core::unification::{matches, mgu};
 use crate::thir_core::Id;
+use serde::Deserialize;
 
 /// A predicate imposes constraints on types
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub enum Pred {
     /// Assert that the type (2nd field) is a member of class (1st field)  
     IsIn(Id, Type),

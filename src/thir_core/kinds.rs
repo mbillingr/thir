@@ -3,11 +3,12 @@ Defines the possible kinds of types.
 Kinds play the same role for types, as types do for values.
 !*/
 
+use serde::Deserialize;
 use std::fmt::Formatter;
 use std::rc::Rc;
 
 /// The kind of a type
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Deserialize, PartialEq)]
 pub enum Kind {
     /// The kind of simple (nullary) types such as `Int` or `Int -> Bool`.
     Star,

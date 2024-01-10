@@ -34,8 +34,8 @@ pub struct Interface {
     /// Super-interfaces
     pub supers: Vec<Id>,
     /// Methods defined by the interface
-    //pub methods: Map<Id, Scheme>,
-    pub methods: Map<Id, ()>,
+    pub methods: Map<Id, Scheme>,
+    //pub methods: Map<Id, ()>,
 }
 
 struct Implementation {
