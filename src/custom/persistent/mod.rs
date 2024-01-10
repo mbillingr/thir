@@ -5,6 +5,7 @@ Uses reference counting to share structure. This may not be the most efficient w
 !*/
 
 mod builder_macros;
+mod de;
 mod hamt;
 mod persistent_map;
 mod persistent_set;
