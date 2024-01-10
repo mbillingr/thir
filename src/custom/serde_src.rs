@@ -282,7 +282,7 @@ impl<'de, 'a> de::Deserializer<'de> for &'a mut Deserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        self.deserialize_seq(visitor)
+        visitor.visit_seq(self)
     }
 
     fn deserialize_map<V>(mut self, visitor: V) -> std::result::Result<V::Value, Self::Error>

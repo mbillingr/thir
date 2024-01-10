@@ -11,6 +11,7 @@ use std::rc::Rc;
 #[derive(Clone, Deserialize, PartialEq)]
 pub enum Kind {
     /// The kind of simple (nullary) types such as `Int` or `Int -> Bool`.
+    #[serde(rename = "*")]
     Star,
 
     /// The kind of type constructors such as `List t`.

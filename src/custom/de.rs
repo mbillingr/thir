@@ -62,7 +62,7 @@ mod tests {
 
         assert_eq!(
             serde_src::from_str::<ast::Interface>(
-                "interface Foo ( Bar Baz ) { foo Forall [ ] [ [ ] TCon [ bla Star ] ] }"
+                "interface Foo ( Bar Baz ) { foo forall [ ] [ ] TCon bla * }"
             )
             .unwrap(),
             ast::Interface {
