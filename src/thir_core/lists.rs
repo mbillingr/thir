@@ -79,13 +79,12 @@ impl<T> List<T> {
     where
         T: Clone,
         I: IntoIterator<Item = Self>,
-        I::IntoIter: DoubleEndedIterator,
     {
-        let mut out = Self::Nil;
-        for l in ls.into_iter().rev() {
-            out = l.append(out)
+        let mut ls = ls.into_iter();
+        match ls.next() {
+            None => Self::Nil,
+            Some(l) => l.append(Self::concat(ls)),
         }
-        out
     }
 
     pub fn append(&self, b: Self) -> Self

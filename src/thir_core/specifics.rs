@@ -78,36 +78,36 @@ impl Type {
 
 pub fn add_core_classes() -> EnvTransformer {
     use EnvTransformer as ET;
-    ET::add_class("Eq".into(), vec![])
-        .compose(ET::add_class("Ord".into(), vec!["Eq".into()]))
-        .compose(ET::add_class("Show".into(), vec![]))
-        .compose(ET::add_class("Read".into(), vec![]))
-        .compose(ET::add_class("Bounded".into(), vec![]))
-        .compose(ET::add_class("Enum".into(), vec![]))
-        .compose(ET::add_class("Functor".into(), vec![]))
-        .compose(ET::add_class("Monad".into(), vec![]))
+    ET::add_class("Eq".into(), list![])
+        .compose(ET::add_class("Ord".into(), list!["Eq".into()]))
+        .compose(ET::add_class("Show".into(), list![]))
+        .compose(ET::add_class("Read".into(), list![]))
+        .compose(ET::add_class("Bounded".into(), list![]))
+        .compose(ET::add_class("Enum".into(), list![]))
+        .compose(ET::add_class("Functor".into(), list![]))
+        .compose(ET::add_class("Monad".into(), list![]))
 }
 
 pub fn add_num_classes() -> EnvTransformer {
     use EnvTransformer as ET;
-    let et = ET::add_class("Num".into(), vec!["Eq".into(), "Show".into()])
+    let et = ET::add_class("Num".into(), list!["Eq".into(), "Show".into()])
         .compose(ET::add_class(
             "Real".into(),
-            vec!["Num".into(), "Ord".into()],
+            list!["Num".into(), "Ord".into()],
         ))
-        .compose(ET::add_class("Fractional".into(), vec!["Num".into()]))
+        .compose(ET::add_class("Fractional".into(), list!["Num".into()]))
         .compose(ET::add_class(
             "Integral".into(),
-            vec!["Real".into(), "Enum".into()],
+            list!["Real".into(), "Enum".into()],
         ))
         .compose(ET::add_class(
             "RealFrac".into(),
-            vec!["Real".into(), "Fractional".into()],
+            list!["Real".into(), "Fractional".into()],
         ))
-        .compose(ET::add_class("Floating".into(), vec!["Fractional".into()]))
+        .compose(ET::add_class("Floating".into(), list!["Fractional".into()]))
         .compose(ET::add_class(
             "RealFloat".into(),
-            vec!["RealFrac".into(), "Floating".into()],
+            list!["RealFrac".into(), "Floating".into()],
         ));
 
     et.compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_int())))

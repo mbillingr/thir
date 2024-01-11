@@ -1,3 +1,4 @@
+use crate::custom::persistent::PersistentMap;
 use crate::list;
 use crate::thir_core::lists::List;
 use crate::thir_core::predicates::{match_pred, mgu_pred, Pred};
@@ -8,7 +9,7 @@ use std::rc::Rc;
 
 /// A Type class (Interface) contains a list of super classes and a list of instances.
 #[derive(Debug, Clone)]
-pub struct Class(pub Rc<Vec<Id>>, pub List<Inst>);
+pub struct Class(pub List<Id>, pub List<Inst>);
 
 /// An instance is a type that implements a certain class (interface)
 pub type Inst = Qual<Pred>;
@@ -16,14 +17,14 @@ pub type Inst = Qual<Pred>;
 /// The class environment captures information about defined classes and instances
 /// in a given program.
 pub struct ClassEnv {
-    classes: Rc<dyn Fn(&Id) -> crate::Result<Class>>,
+    classes: PersistentMap<Id, Class>,
     defaults: List<Type>,
 }
 
 impl Default for ClassEnv {
     fn default() -> Self {
         ClassEnv {
-            classes: Rc::new(|i| Err(format!("class {i} not defined"))?),
+            classes: PersistentMap::new(),
             defaults: list![Type::t_int(), Type::t_double()],
         }
     }
@@ -31,13 +32,13 @@ impl Default for ClassEnv {
 
 impl ClassEnv {
     /// get super classes for a defined class
-    pub fn supers(&self, name: &Id) -> Rc<Vec<Id>> {
-        (self.classes)(name).unwrap().0
+    pub fn supers(&self, name: &Id) -> List<Id> {
+        self.classes.get(name).expect("class not defined").0.clone()
     }
 
     /// get instances for a defined class
     pub fn insts(&self, name: &Id) -> List<Inst> {
-        (self.classes)(name).unwrap().1
+        self.classes.get(name).expect("class not defined").1.clone()
     }
 
     /// iterate over defaultable types
@@ -47,14 +48,13 @@ impl ClassEnv {
 
     /// test if a class is defined
     pub fn is_defined(&self, name: &Id) -> bool {
-        (self.classes)(name).is_ok()
+        self.classes.get(name).is_some()
     }
 
     /// add a new or updated class definition
     pub fn modify(&self, name: Id, cls: Class) -> Self {
-        let next = self.classes.clone();
         ClassEnv {
-            classes: Rc::new(move |j| if j == &name { Ok(cls.clone()) } else { next(j) }),
+            classes: self.classes.insert(name, cls),
             defaults: self.defaults.clone(),
         }
     }
@@ -147,8 +147,7 @@ impl EnvTransformer {
         }))
     }
 
-    pub fn add_class(i: Id, sis: Vec<Id>) -> Self {
-        let sis = Rc::new(sis);
+    pub fn add_class(i: Id, sis: List<Id>) -> Self {
         EnvTransformer(Rc::new(move |ce| {
             if ce.is_defined(&i) {
                 Err("class {i} already defined")?

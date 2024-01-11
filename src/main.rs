@@ -27,7 +27,7 @@ fn main() {
     let ce = ce.modify(
         foo_cls.clone(),
         Class(
-            vec![].into(),
+            list![],
             list![Qual(vec![], Pred::IsIn(foo_cls.clone(), Type::t_int()))],
         ),
     );

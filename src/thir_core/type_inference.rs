@@ -51,5 +51,5 @@ impl TI {
 }
 
 fn enum_id(n: Int) -> Id {
-    format!("v{n}")
+    format!("v{n}").into()
 }

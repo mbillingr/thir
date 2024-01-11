@@ -3,24 +3,10 @@ use crate::thir_core::kinds::Kind;
 use crate::thir_core::predicates::Pred;
 use crate::thir_core::scheme::Scheme;
 use crate::thir_core::types::Type;
+use crate::thir_core::Id;
 use serde::Deserialize;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
-
-#[derive(Clone, Deserialize, Eq, Hash, PartialEq)]
-pub struct Id(Rc<String>);
-
-impl Id {
-    pub fn new(s: impl ToString) -> Id {
-        Id(Rc::new(s.to_string()))
-    }
-}
-
-impl Debug for Id {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 struct Toplevel {
     interface_defs: Vec<Interface>,
