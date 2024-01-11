@@ -35,24 +35,32 @@ pub struct Interface {
     pub supers: Vec<Id>,
     /// Methods defined by the interface
     pub methods: Map<Id, Scheme>,
-    //pub methods: Map<Id, ()>,
 }
 
-struct Implementation {
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct Implementation {
     /// The name of the interface
-    name: Id,
+    pub name: Id,
     /// The type implementing the interface
-    ty: Type,
+    #[serde(rename = "for")]
+    pub ty: Type,
     /// Predicates
-    preds: Vec<Pred>,
+    pub preds: Vec<Pred>,
     /// Method implementations
-    methods: Map<Id, Vec<Alt>>,
+    pub methods: Map<Id, Vec<Alt>>,
 }
 
-struct Alt(Vec<Pat>, Expr);
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct Alt(pub Vec<Pat>, pub Expr);
 
-enum Pat {
+#[derive(Debug, Deserialize, PartialEq)]
+pub enum Pat {
+    #[serde(alias = "pvar")]
     PVar(Id),
 }
 
-enum Expr {}
+#[derive(Debug, Deserialize, PartialEq)]
+pub enum Expr {
+    #[serde(alias = "var")]
+    Var(Id),
+}
