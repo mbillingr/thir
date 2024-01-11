@@ -16,7 +16,6 @@ mod tests {
     use super::*;
     use crate::custom::persistent::PersistentMap;
     use crate::custom::serde_src;
-    use crate::map;
     use crate::thir_core::kinds::Kind::Star;
     use crate::thir_core::predicates::Pred;
     use crate::thir_core::qualified::Qual;
@@ -24,6 +23,7 @@ mod tests {
     use crate::thir_core::scheme::Scheme::Forall;
     use crate::thir_core::types::{Tycon, Type, Tyvar};
     use crate::thir_core::Id;
+    use crate::{list, map};
     use serde_json;
 
     #[test]
@@ -48,7 +48,7 @@ mod tests {
             .unwrap(),
             ast::Interface {
                 name: "Foo".into(),
-                supers: vec![],
+                supers: list![],
                 methods: Map::default(),
             }
         );
@@ -57,7 +57,7 @@ mod tests {
             serde_json::from_str::<ast::Interface>("[\"Foo\", [], {}]").unwrap(),
             ast::Interface {
                 name: "Foo".into(),
-                supers: vec![],
+                supers: list![],
                 methods: Map::default(),
             }
         );
@@ -69,7 +69,7 @@ mod tests {
             .unwrap(),
             ast::Interface {
                 name: "Foo".into(),
-                supers: vec!["Bar".into(), "Baz".into()],
+                supers: list!["Bar".into(), "Baz".into()],
                 methods: map!["foo".into() => Forall(vec![], Qual(vec![], Type::TCon(Tycon("bla".into(), Star))))],
             }
         );
@@ -78,11 +78,11 @@ mod tests {
     #[test]
     fn implementation() {
         assert_eq!(
-            serde_json::from_str::<ast::Implementation>(
+            serde_json::from_str::<ast::Impl>(
                 "{\"name\": \"Foo\", \"for\": { \"TCon\": [\"bla\", \"*\"] }, \"preds\": [], \"methods\": {}}"
             )
             .unwrap(),
-            ast::Implementation {
+            ast::Impl {
                 name: "Foo".into(),
                 ty: Type::TCon(Tycon("bla".into(), Star)),
                 preds: vec![],
@@ -93,9 +93,9 @@ mod tests {
         let foo = "Foo".into();
         let bar = "bar".into();
         assert_eq!(
-            serde_src::from_str::<ast::Implementation>(
+            serde_src::from_str::<ast::Impl>(
                 "\
-            implementation Foo TVar a * [  \
+            impl Foo TVar a * [  \
                 IsIn Baz TVar a *   \
             ] {  \
                 bar [  \
@@ -104,7 +104,7 @@ mod tests {
             }"
             )
             .unwrap(),
-            ast::Implementation {
+            ast::Impl {
                 name: foo,
                 ty: Type::TVar(Tyvar("a".into(), Star)),
                 preds: vec![Pred::IsIn(

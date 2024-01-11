@@ -1,4 +1,9 @@
+use crate::custom::persistent::PersistentMap;
+use serde::de::{MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer};
 use std::fmt::{Debug, Formatter};
+use std::hash::Hash;
+use std::marker::PhantomData;
 use std::rc::Rc;
 #[macro_export]
 macro_rules! list {
@@ -151,5 +156,44 @@ impl<'a, T> IntoIterator for &'a List<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         ListIter(self)
+    }
+}
+
+impl<'de, T> Deserialize<'de> for List<T>
+where
+    T: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(ListVisitor {
+            marker: PhantomData,
+        })
+    }
+}
+
+struct ListVisitor<T> {
+    marker: PhantomData<List<T>>,
+}
+
+impl<'de, T> Visitor<'de> for ListVisitor<T>
+where
+    T: Deserialize<'de>,
+{
+    type Value = List<T>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a map")
+    }
+
+    fn visit_seq<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+    where
+        M: SeqAccess<'de>,
+    {
+        Ok(match access.next_element()? {
+            None => List::Nil,
+            Some(item) => self.visit_seq(access)?.cons(item),
+        })
     }
 }

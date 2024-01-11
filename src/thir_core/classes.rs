@@ -16,6 +16,7 @@ pub type Inst = Qual<Pred>;
 
 /// The class environment captures information about defined classes and instances
 /// in a given program.
+#[derive(Clone, Debug)]
 pub struct ClassEnv {
     classes: PersistentMap<Id, Class>,
     defaults: List<Type>,
@@ -136,6 +137,15 @@ impl ClassEnv {
 pub struct EnvTransformer(Rc<dyn Fn(&ClassEnv) -> crate::Result<ClassEnv>>);
 
 impl EnvTransformer {
+    pub fn new() -> Self {
+        EnvTransformer(Rc::new(|ce| {
+            Ok(ClassEnv {
+                classes: ce.classes.clone(),
+                defaults: ce.defaults.clone(),
+            })
+        }))
+    }
+
     pub fn apply(&self, ce: &ClassEnv) -> crate::Result<ClassEnv> {
         self.0(ce)
     }
