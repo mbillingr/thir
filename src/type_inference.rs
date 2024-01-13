@@ -8,6 +8,7 @@ use crate::unification::mgu;
 use crate::{Id, Int};
 
 /// The type inference state
+#[derive(Debug)]
 pub struct TI {
     subst: Subst,
     count: Int,

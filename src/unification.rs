@@ -11,9 +11,9 @@ pub fn mgu(a: &Type, b: &Type) -> crate::Result<Subst> {
             Ok(s2.compose(&s1))
         }
 
-        (TVar(u), t) => var_bind(u, t),
-
         (t, TVar(u)) => var_bind(u, t),
+
+        (TVar(u), t) => var_bind(u, t),
 
         (TCon(tc1), TCon(tc2)) if tc1 == tc2 => Ok(Subst::null_subst()),
 

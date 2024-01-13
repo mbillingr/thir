@@ -529,5 +529,6 @@ pub fn ti_program(
     let s = &ti.get_subst();
     let rs = ce.reduce(&s.apply(&ps))?;
     let s_ = default_subst(ce, vec![], &rs)?;
+    println!("{:?}", ti);
     Ok((Program(bgs_), s_.compose(s).apply(&as_)))
 }
