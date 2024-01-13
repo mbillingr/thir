@@ -16,7 +16,7 @@ pub mod scheme;
 pub mod specific_inference;
 pub mod specifics;
 mod substitutions;
-mod type_inference;
+pub mod type_inference;
 pub mod types;
 mod unification;
 

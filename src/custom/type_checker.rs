@@ -1,6 +1,6 @@
 use crate::custom::ast;
 use crate::custom::ast::Alt;
-use crate::custom::persistent::PersistentMap;
+use crate::custom::persistent::{PersistentMap as Map, PersistentMap};
 use crate::thir_core::assumptions::Assump;
 use crate::thir_core::classes::{ClassEnv, EnvTransformer};
 use crate::thir_core::kinds::Kind::Star;
@@ -8,7 +8,10 @@ use crate::thir_core::lists::ListLike;
 use crate::thir_core::predicates::Pred;
 use crate::thir_core::qualified::Qual;
 use crate::thir_core::scheme::Scheme;
-use crate::thir_core::Id;
+use crate::thir_core::type_inference::TI;
+use crate::thir_core::types::Type;
+use crate::thir_core::types::Type::TGen;
+use crate::thir_core::{Id, Int};
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -16,7 +19,7 @@ type Result<T> = std::result::Result<T, String>;
 #[derive(Default)]
 pub struct InterfaceEnv {
     ce: ClassEnv,
-    method_impls: PersistentMap<Id, PersistentMap<Id, Vec<Alt>>>,
+    method_impls: Map<Id, Map<Id, Vec<Alt>>>,
 }
 
 fn check_toplevel(
@@ -34,21 +37,23 @@ fn check_toplevel(
         .unwrap_or_else(|| ce.clone());
 
     // method declarations
-    let ass: Vec<_> = top
+    let assumptions: Map<Id, Scheme> = top
         .interface_defs
         .iter()
-        .flat_map(|intf| intf.methods.iter())
-        .map(|(i, sc)| match sc {
-            Scheme::Forall(ks, Qual(ps, t)) => Assump {
-                i: i.clone(),
-                // todo: currently, we assume Kind * for te interface type. this is an unnecessary limitation, but
-                //       we might have to add the kind explicitly to the interface definition.
-                sc: Scheme::Forall(
-                    ks.cons(Star),
-                    Qual(ps.snoc(todo!("this interface as predicate")), t.clone()),
+        .map(|intf| {
+            intf.methods.iter().map(|(i, sc)| match sc {
+                Scheme::Forall(ks, Qual(ps, t)) => (
+                    i.clone(),
+                    Scheme::Forall(
+                        // todo: currently, we assume Kind * for te interface type. this is an unnecessary limitation,
+                        //       but we might have to add the kind explicitly to the interface definition.
+                        ks.cons(Star),
+                        Qual(ps.snoc(Pred::IsIn(intf.name.clone(), TGen(0))), t.clone()),
+                    ),
                 ),
-            },
+            })
         })
+        .flatten()
         .collect();
 
     // interface implementations
@@ -69,14 +74,46 @@ fn check_toplevel(
     let method_impls: Vec<_> = top
         .interface_impls
         .iter()
-        .map(|imp| imp.methods.iter().map(|(method, expr)| method))
+        .map(|imp| {
+            imp.methods
+                .iter()
+                .map(|(method, alts)| check_method(&ce, &assumptions, method, alts))
+        })
         .flatten()
-        .collect();
+        .collect::<Result<_>>()?;
 
     println!("{:?}", ce);
-    println!("{:?}", ass);
+    println!("{:?}", assumptions);
 
     todo!("add (type-checked?) method impls to Inst?");
+}
+
+fn check_method(
+    ce: &ClassEnv,
+    ass: &PersistentMap<Id, Scheme>,
+    method: &Id,
+    alts: &[Alt],
+) -> Result<Vec<Alt>> {
+    let sc = ass
+        .get(method)
+        .ok_or_else(|| format!("Unknown method {method}"))?;
+
+    let mut ti = TI::new();
+
+    let Qual(qs, t) = ti.fresh_inst(sc);
+
+    let (ps, alts_) = check_alts(&mut ti, ce, ass, alts, &t)?;
+    todo!()
+}
+
+fn check_alts(
+    ti: &mut TI,
+    ce: &ClassEnv,
+    ass: &PersistentMap<Id, Scheme>,
+    alts: &[Alt],
+    t: &Type,
+) -> Result<(Vec<Pred>, Vec<Alt>)> {
+    todo!()
 }
 
 #[cfg(test)]
@@ -90,10 +127,14 @@ mod tests {
         let top = serde_src::from_str(
             "toplevel [
             interface Foo [ ] {
-                 foo forall [ ] [  ] TCon Int * 
+                 foo forall [ ] [  ] TCon Int *
             }
         ] [
-            impl Foo TCon Int * [ ] { }
+            impl Foo TCon Int * [ ] {
+                foo [ [ PVar x ] Var x 
+                      [ PVar x ] Var x
+                    ]
+            }
         ]",
         )
         .unwrap();
