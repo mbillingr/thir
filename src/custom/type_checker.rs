@@ -1,11 +1,28 @@
 use crate::custom::ast;
+use crate::custom::ast::Alt;
+use crate::custom::persistent::PersistentMap;
 use crate::thir_core::assumptions::Assump;
 use crate::thir_core::classes::{ClassEnv, EnvTransformer};
+use crate::thir_core::kinds::Kind::Star;
+use crate::thir_core::lists::ListLike;
 use crate::thir_core::predicates::Pred;
+use crate::thir_core::qualified::Qual;
+use crate::thir_core::scheme::Scheme;
+use crate::thir_core::Id;
 
 type Result<T> = std::result::Result<T, String>;
 
-fn check_toplevel(ce: &ClassEnv, top: &ast::Toplevel) -> Result<ast::Toplevel> {
+/// Wrap thih's class env and add additional info
+#[derive(Default)]
+pub struct InterfaceEnv {
+    ce: ClassEnv,
+    method_impls: PersistentMap<Id, PersistentMap<Id, Vec<Alt>>>,
+}
+
+fn check_toplevel(
+    InterfaceEnv { ce, method_impls }: &InterfaceEnv,
+    top: &ast::Toplevel,
+) -> Result<ast::Toplevel> {
     // interface definitions
     let ce = top
         .interface_defs
@@ -21,9 +38,16 @@ fn check_toplevel(ce: &ClassEnv, top: &ast::Toplevel) -> Result<ast::Toplevel> {
         .interface_defs
         .iter()
         .flat_map(|intf| intf.methods.iter())
-        .map(|(i, sc)| Assump {
-            i: i.clone(),
-            sc: sc.clone(),
+        .map(|(i, sc)| match sc {
+            Scheme::Forall(ks, Qual(ps, t)) => Assump {
+                i: i.clone(),
+                // todo: currently, we assume Kind * for te interface type. this is an unnecessary limitation, but
+                //       we might have to add the kind explicitly to the interface definition.
+                sc: Scheme::Forall(
+                    ks.cons(Star),
+                    Qual(ps.snoc(todo!("this interface as predicate")), t.clone()),
+                ),
+            },
         })
         .collect();
 
@@ -42,6 +66,13 @@ fn check_toplevel(ce: &ClassEnv, top: &ast::Toplevel) -> Result<ast::Toplevel> {
         .transpose()?
         .unwrap_or_else(|| ce.clone());
 
+    let method_impls: Vec<_> = top
+        .interface_impls
+        .iter()
+        .map(|imp| imp.methods.iter().map(|(method, expr)| method))
+        .flatten()
+        .collect();
+
     println!("{:?}", ce);
     println!("{:?}", ass);
 
@@ -55,17 +86,17 @@ mod tests {
 
     #[test]
     fn toplevel() {
-        let ce = ClassEnv::default();
+        let ie = InterfaceEnv::default();
         let top = serde_src::from_str(
             "toplevel [
             interface Foo [ ] {
-                 foo forall [ ] [ ] TCon Int * 
+                 foo forall [ ] [  ] TCon Int * 
             }
         ] [
             impl Foo TCon Int * [ ] { }
         ]",
         )
         .unwrap();
-        check_toplevel(&ce, &top).unwrap();
+        check_toplevel(&ie, &top).unwrap();
     }
 }

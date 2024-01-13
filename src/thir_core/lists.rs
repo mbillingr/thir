@@ -51,6 +51,37 @@ pub fn eq_intersect<T: PartialEq>(a: impl IntoIterator<Item = T>, b: Vec<T>) -> 
     a.into_iter().filter(|x| b.contains(x)).collect()
 }
 
+pub trait ListLike<T> {
+    fn cons(&self, x: T) -> Self;
+    fn snoc(&self, x: T) -> Self;
+}
+
+impl<T: Clone> ListLike<T> for Vec<T> {
+    fn cons(&self, x: T) -> Self {
+        let mut xs = Vec::with_capacity(self.len() + 1);
+        xs.push(x);
+        xs.extend(self.iter().cloned());
+        xs
+    }
+
+    fn snoc(&self, x: T) -> Self {
+        let mut xs = Vec::with_capacity(self.len() + 1);
+        self.clone_into(&mut xs);
+        xs.push(x);
+        xs
+    }
+}
+
+impl<T: Clone> ListLike<T> for List<T> {
+    fn cons(&self, x: T) -> Self {
+        List::cons(self, x)
+    }
+
+    fn snoc(&self, x: T) -> Self {
+        List::append(self, list![x])
+    }
+}
+
 #[derive(PartialEq)]
 pub enum List<T> {
     Nil,
