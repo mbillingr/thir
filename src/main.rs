@@ -121,6 +121,26 @@ fn main() {
                     vec![Pat::PVar("x".into()), Pat::PVar("y".into())],
                     Expr::App(
                         Expr::Var("show".into()).into(),
+                        Expr::Var("x".into()).into(),
+                    ),
+                )],
+            ),
+            Expl(
+                "show2".into(),
+                Scheme::Forall(
+                    list![Kind::Star, Kind::Star],
+                    Qual(
+                        vec![
+                            Pred::IsIn("Show".into(), Type::TGen(0)),
+                            Pred::IsIn("Show".into(), Type::TGen(1)),
+                        ],
+                        Type::func(Type::TGen(0), Type::func(Type::TGen(1), Type::t_string())),
+                    ),
+                ),
+                vec![Alt(
+                    vec![Pat::PVar("x".into()), Pat::PVar("y".into())],
+                    Expr::App(
+                        Expr::Var("show".into()).into(),
                         Expr::Var("y".into()).into(),
                     ),
                 )],

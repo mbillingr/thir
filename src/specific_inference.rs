@@ -321,7 +321,7 @@ fn ti_expl(
         .into_iter()
         .filter(|p| !ce.entail(&qs_, p))
         .collect();
-    let sc_ = Scheme::quantify(&gs, &Qual(qs_, t_));
+    let sc_ = Scheme::quantify(&gs, &Qual(qs_.clone(), t_.clone()));
     let (ds, rs) = split(ce, &fs, &gs, &ps_)?;
 
     if sc != &sc_ {
@@ -335,7 +335,8 @@ fn ti_expl(
     // this part was added to substitute type vars in annotations with actual types
     let rs__ = ce.reduce(&s.apply(&ps_))?;
     let s_ = default_subst(ce, vec![], &rs__)?;
-    let alts_ = alts_.apply_subst(&s_.compose(&s));
+    let s__ = Scheme::quantifying_substitution(&gs, &Qual(qs_, t_));
+    let alts_ = alts_.apply_subst(&s__.compose(&s_.compose(&s)));
 
     let expl_ = Expl(id.clone(), sc.clone(), alts_);
 

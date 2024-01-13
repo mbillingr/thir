@@ -36,6 +36,15 @@ impl Scheme {
         );
         Scheme::Forall(ks, s.apply(qt))
     }
+    pub fn quantifying_substitution(vs: &[Tyvar], qt: &Qual<Type>) -> Subst {
+        let vs_: Vec<_> = qt.tv().into_iter().filter(|v| vs.contains(v)).collect();
+        let n = vs_.len() as Int;
+        Subst::from_rev_iter(
+            vs_.into_iter()
+                .rev()
+                .zip((0..n).rev().map(|k| Type::TGen(k))),
+        )
+    }
 }
 
 impl Type {
