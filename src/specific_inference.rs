@@ -215,8 +215,10 @@ fn ti_expr(
             Ok((Expr::Let(bg_, e_.into()), ps, t))
         }
 
-        Expr::Annotate(_, _) => {
-            todo!("Can't check annotated expressions, yet")
+        Expr::Annotate(t, ex) => {
+            let (ex_, ps, t_) = ti_expr(ti, ce, ass, ex)?;
+            ti.unify(t, &t_)?;
+            Ok((ex_, ps, t_))
         }
     }
 }
