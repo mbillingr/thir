@@ -11,7 +11,7 @@ use std::rc::Rc;
 struct Class(Rc<Vec<Id>>, List<Inst>);
 
 /// An instance is a type that implements a certain class (interface)
-type Inst = Qual<Pred>;
+pub type Inst = Qual<Pred>;
 
 /// The class environment captures information about defined classes and instances
 /// in a given program.

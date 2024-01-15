@@ -305,7 +305,7 @@ impl Types for Expl {
     }
 }
 
-fn ti_expl(
+pub fn ti_expl(
     ti: &mut TI,
     ce: &ClassEnv,
     ass: &[Assump],

@@ -4,6 +4,7 @@ Substitutions associate type variables with types.
 
 use crate::lists::{eq_intersect, eq_union, List};
 use crate::types::{Type, Tyvar};
+use crate::Id;
 use std::rc::Rc;
 
 /// A substitution that associates type variables with types.
@@ -38,6 +39,11 @@ impl Subst {
 
     pub fn lookup(&self, u: &Tyvar) -> Option<&Type> {
         self.0.lookup(u)
+    }
+
+    /// like lookup but ignores kind
+    pub fn lookup_by_name(&self, name: &Id) -> Option<&Type> {
+        self.0.lookup_by_name(name)
     }
 
     pub fn apply<U, T: Types<U> + ?Sized>(&self, this: &T) -> U {
@@ -89,6 +95,15 @@ impl SubstImpl {
             Self::Empty => None,
             Self::Assoc(ass) if &ass.0 == u => Some(&ass.1),
             Self::Assoc(ass) => ass.2.lookup(u),
+        }
+    }
+
+    /// like lookup but ignores kind
+    pub fn lookup_by_name(&self, name: &Id) -> Option<&Type> {
+        match self {
+            Self::Empty => None,
+            Self::Assoc(ass) if &ass.0 .0 == name => Some(&ass.1),
+            Self::Assoc(ass) => ass.2.lookup_by_name(name),
         }
     }
 

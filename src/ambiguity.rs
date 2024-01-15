@@ -4,6 +4,7 @@ use crate::predicates::Pred;
 use crate::substitutions::{Subst, Types};
 use crate::types::{Type, Tyvar};
 
+#[derive(Debug)]
 pub struct Ambiguity(pub Tyvar, pub Vec<Pred>);
 
 fn ambiguities(vs: Vec<Tyvar>, ps: &[Pred]) -> Vec<Ambiguity> {
@@ -90,7 +91,7 @@ fn with_defaults<T>(
         heads.push(
             ts.into_iter()
                 .next()
-                .ok_or_else(|| "cannot resolve ambiguity")?,
+                .ok_or_else(|| format!("cannot resolve ambiguity {vps:?}"))?,
         )
     }
 
