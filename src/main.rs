@@ -88,6 +88,15 @@ fn main() {
                     ),
                 )],
             },
+            // impl ShowTy for Integer: show-ty
+            MethodImpl {
+                method: "show-ty".into(),
+                ty: Type::t_integer(),
+                alts: vec![Alt(
+                    vec![Pat::PVar("x".into())],
+                    Expr::Lit(Literal::Str("Integer".into())), // correct version
+                )],
+            },
         ],
         free_bindings: BindGroup(
             vec![Expl(
