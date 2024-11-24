@@ -7,6 +7,7 @@ mod classes;
 mod instantiate;
 mod kinds;
 mod lists;
+mod parser_utils;
 mod predicates;
 mod qualified;
 mod scheme;
@@ -16,6 +17,8 @@ mod substitutions;
 mod type_inference;
 mod types;
 mod unification;
+
+lalrpop_mod!(grammar);
 
 use crate::assumptions::Assump;
 use crate::classes::ClassEnv;
@@ -28,6 +31,8 @@ use crate::specific_inference::{
 };
 use crate::specifics::{add_core_classes, add_num_classes};
 use crate::types::Type;
+use lalrpop_util::lalrpop_mod;
+use std::io::BufRead;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -48,6 +53,15 @@ fn main() {
             ),
         ),
     }];
+
+    for line in std::io::stdin().lock().lines() {
+        let line = line.unwrap();
+        let prog = grammar::ProgramParser::new().parse(&line);
+        println!("{:?}", prog);
+
+        let r = ti_program(&ce, initial_assumptions.clone(), &prog.unwrap());
+        println!("{r:#?}")
+    }
 
     let prog = Program(vec![BindGroup(
         vec![

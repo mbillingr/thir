@@ -13,6 +13,7 @@ use crate::{Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 
+#[derive(Debug)]
 pub enum Literal {
     Int(i64),
     Char(char),
@@ -35,12 +36,13 @@ fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
     }
 }
 
+#[derive(Debug)]
 pub enum Pat {
     PVar(Id),
     PWildcard,
     PAs(Id, Rc<Pat>),
     PLit(Literal),
-    PNpk(Id, Int),
+    PNpk(Id, i64),
     PCon(Assump, Vec<Pat>),
 }
 
@@ -125,6 +127,7 @@ fn ti_pats(ti: &mut TI, pats: &[Pat]) -> crate::Result<(Vec<Pred>, Vec<Assump>, 
     Ok((ps, as_, ts))
 }
 
+#[derive(Debug)]
 pub enum Expr {
     Var(Id),
     Lit(Literal),
@@ -172,6 +175,7 @@ fn ti_expr(
     }
 }
 
+#[derive(Debug)]
 pub struct Alt(pub Vec<Pat>, pub Expr);
 
 fn ti_alt(
@@ -225,6 +229,7 @@ fn split(
 }
 
 /// Explicitly typed binding
+#[derive(Debug)]
 pub struct Expl(pub Id, pub Scheme, pub Vec<Alt>);
 
 fn ti_expl(
@@ -260,6 +265,7 @@ fn ti_expl(
 }
 
 /// Implicitly typed binding
+#[derive(Debug)]
 pub struct Impl(pub Id, pub Vec<Alt>);
 
 fn restricted(bs: &[Impl]) -> bool {
@@ -312,6 +318,13 @@ fn ti_impls(
     }
 }
 
+/// helper for parsing BindGroup
+pub enum Bind {
+    Explicit(Expl),
+    Mutual(Vec<Impl>),
+}
+
+#[derive(Debug)]
 pub struct BindGroup(pub Vec<Expl>, pub Vec<Vec<Impl>>);
 
 fn ti_bindgroup(
@@ -373,6 +386,7 @@ fn ti_seq<T>(
     Ok((ps, as__))
 }
 
+#[derive(Debug)]
 pub struct Program(pub Vec<BindGroup>);
 
 pub fn ti_program(
