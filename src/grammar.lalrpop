@@ -73,7 +73,6 @@ RcPat: Rc<ast::Pat> = {
 Expr: ast::Expr = {
     <Ident> => ast::Expr::Var(<>),
     <Literal> => ast::Expr::Lit(<>),
-    <Assump> => ast::Expr::Const(<>),
     "(" <RcExpr> <RcExpr> ")" => ast::Expr::App(<>),
     "let" <Group> "in" <RcExpr> => ast::Expr::Let(<>),
 }
