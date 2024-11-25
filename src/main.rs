@@ -26,9 +26,7 @@ use crate::kinds::Kind;
 use crate::predicates::Pred;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
-use crate::specific_inference::{
-    ti_program, Alt, BindGroup, Expl, Expr, Impl, Literal, Pat, Program,
-};
+use crate::specific_inference::{ti_program, Alt, BindGroup, Expl, Expr, Literal, Program};
 use crate::specifics::{add_core_classes, add_num_classes};
 use crate::types::Type;
 use lalrpop_util::lalrpop_mod;
@@ -43,7 +41,7 @@ fn main() {
 
     // todo: these should be populated by class declarations
     //       actually, they should be accessed using Expr::Const
-    let initial_assumptions = vec![Assump {
+    let mut global_assumptions = vec![Assump {
         i: "show".into(),
         sc: Scheme::Forall(
             list![Kind::Star],
@@ -59,8 +57,12 @@ fn main() {
         let prog = grammar::ProgramParser::new().parse(&line);
         println!("{:?}", prog);
 
-        let r = ti_program(&ce, initial_assumptions.clone(), &prog.unwrap());
-        println!("{r:#?}")
+        let r = ti_program(&ce, global_assumptions.clone(), &prog.unwrap());
+        println!("{r:#?}");
+
+        if let Ok(ass) = r {
+            global_assumptions.extend(ass)
+        }
     }
 
     let prog = Program(vec![BindGroup(
@@ -167,7 +169,7 @@ fn main() {
         ]*/],
     )]);
 
-    let r = ti_program(&ce, initial_assumptions, &prog);
+    let r = ti_program(&ce, global_assumptions, &prog);
     println!("{r:#?}")
 }
 
