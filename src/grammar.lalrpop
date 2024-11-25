@@ -2,6 +2,8 @@ use std::rc::Rc;
 use std::str::FromStr;
 use crate::assumptions as assump;
 use crate::ast_extra as xst;
+use crate::kinds;
+use crate::predicates;
 use crate::qualified;
 use crate::scheme;
 use crate::specific_inference as ast;
@@ -24,11 +26,7 @@ pub Toplevel: xst::TopLevel = {
 }
 
 DefClass: xst::DefClass = {
-    "interface" <Ident> "{" <FuncDecl*> "}" => todo!(),
-}
-
-FuncDecl: (crate::Id, scheme::Scheme) = {
-    <i:Ident> ":" <t:Type> => (i, scheme::Scheme::Forall(lists::List::Nil, qualified::Qual(vec![], t))),
+    //"interface" <Ident> "{" <FuncDecl*> "}" => todo!(),
 }
 
 ImplClass: xst::ImplClass = {}
@@ -59,12 +57,22 @@ Bind: ast::Bind = {
     "mutual" "{" <Impl *> "}" => ast::Bind::Mutual(<>)
 }
 
-Expl: ast::Expl = {}
+Expl: ast::Expl = {
+    <Ident> <Scheme> <Alts> => ast::Expl(<>),
+}
+
+Scheme: scheme::Scheme = {
+    "forall" <(<Kind> <Pred *>)*> <Type> => todo!()
+}
+
+Kind: kinds::Kind = {}
+
+Pred: predicates::Pred = {}
 
 Type: types::Type = {}
 
 Impl: ast::Impl = {
-    "def" <Ident> <Alts> => ast::Impl(<>),
+    <Ident> <Alts> => ast::Impl(<>),
 }
 
 Alts: Vec<ast::Alt> = {
