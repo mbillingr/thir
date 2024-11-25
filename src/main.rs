@@ -3,6 +3,7 @@
 
 mod ambiguity;
 mod assumptions;
+mod ast_extra;
 mod classes;
 mod instantiate;
 mod kinds;

@@ -1,7 +1,12 @@
 use std::rc::Rc;
 use std::str::FromStr;
-use crate::specific_inference as ast;
 use crate::assumptions as assump;
+use crate::ast_extra as xst;
+use crate::qualified;
+use crate::scheme;
+use crate::specific_inference as ast;
+use crate::types;
+use crate::lists;
 use crate::swap;
 
 grammar;
@@ -12,11 +17,27 @@ Ident: crate::Id = <s:r"[a-zA-Z_][a-zA-Z0-9_]*"> => s.to_string();
 String: String = <s:r#""[^"]*""#> => s[1..s.len()-1].to_string();
 Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
 
-pub Program: ast::Program = {
-    <Group *> => ast::Program(<>),
+pub Toplevel: xst::TopLevel = {
+    <DefClass> => xst::TopLevel::DefClass(<>),
+    <ImplClass> => xst::TopLevel::ImplClass(<>),
+    <BindGroup> => xst::TopLevel::BindGroup(<>),
 }
 
-Group: ast::BindGroup = {
+DefClass: xst::DefClass = {
+    "interface" <Ident> "{" <FuncDecl*> "}" => todo!(),
+}
+
+FuncDecl: (crate::Id, scheme::Scheme) = {
+    <i:Ident> ":" <t:Type> => (i, scheme::Scheme::Forall(lists::List::Nil, qualified::Qual(vec![], t))),
+}
+
+ImplClass: xst::ImplClass = {}
+
+pub Program: ast::Program = {
+    <BindGroup *> => ast::Program(<>),
+}
+
+BindGroup: ast::BindGroup = {
     "{" <Bind *> "}" => {
         let mut explicit = vec![];
         let mut implicit = vec![];
@@ -39,6 +60,8 @@ Bind: ast::Bind = {
 }
 
 Expl: ast::Expl = {}
+
+Type: types::Type = {}
 
 Impl: ast::Impl = {
     "def" <Ident> <Alts> => ast::Impl(<>),
@@ -74,7 +97,7 @@ Expr: ast::Expr = {
     <Ident> => ast::Expr::Var(<>),
     <Literal> => ast::Expr::Lit(<>),
     "(" <RcExpr> <RcExpr> ")" => ast::Expr::App(<>),
-    "let" <Group> "in" <RcExpr> => ast::Expr::Let(<>),
+    "let" <BindGroup> "in" <RcExpr> => ast::Expr::Let(<>),
 }
 
 RcExpr: Rc<ast::Expr> = {
