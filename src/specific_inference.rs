@@ -25,14 +25,8 @@ fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
     match l {
         Literal::Char(_) => Ok((vec![], Type::t_char())),
         Literal::Str(_) => Ok((vec![], Type::t_string())),
-        Literal::Int(_) => {
-            let v = ti.new_tvar(Kind::Star);
-            Ok((vec![Pred::IsIn("Num".into(), v.clone())], v))
-        }
-        Literal::Rat(_) => {
-            let v = ti.new_tvar(Kind::Star);
-            Ok((vec![Pred::IsIn("Fractional".into(), v.clone())], v))
-        }
+        Literal::Int(_) => Ok((vec![], Type::t_int())),
+        Literal::Rat(_) => Ok((vec![], Type::t_double())),
     }
 }
 
