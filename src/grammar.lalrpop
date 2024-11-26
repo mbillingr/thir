@@ -20,7 +20,9 @@ DefClass: ast::DefClass = {
     "interface" <Ident> ":" <Ident *> "{" <(<Ident> ":" <Scheme>) *> "}" => ast::DefClass::new(<>),
 }
 
-ImplClass: ast::ImplClass = {}
+ImplClass: ast::ImplClass = {
+    "impl" <Ident> "for" <Ident> <BindGroup> => ast::ImplClass::new(<>),
+}
 
 BindGroup: ast::BindGroup = {
     "{" <Bind *> "}" => ast::BindGroup(<>),

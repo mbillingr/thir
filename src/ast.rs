@@ -33,6 +33,12 @@ pub struct ImplClass {
     pub methods: BindGroup,
 }
 
+impl ImplClass {
+    pub fn new(cls: Id, ty: Id, methods: BindGroup) -> Self {
+        ImplClass { cls, ty, methods }
+    }
+}
+
 #[derive(Debug)]
 pub enum Pat {
     PVar(Id),

@@ -84,6 +84,13 @@ fn main() {
                 }
             }
 
+            ast::TopLevel::ImplClass(ic) => {
+                let ty = tenv.get(&ic.ty).expect("unknown type").clone();
+                let et = EnvTransformer::add_inst(vec![], Pred::IsIn(ic.cls, ty));
+                ce = et.apply(&ce).unwrap();
+                // todo: check method definitions
+            }
+
             ast::TopLevel::BindGroup(bg) => {
                 let prog = build_program(vec![bg], &tenv);
                 let r = ti_program(&ce, global_assumptions.clone(), &prog);
@@ -92,7 +99,6 @@ fn main() {
                     global_assumptions.extend(ass)
                 }
             }
-            _ => todo!(),
         }
     }
 
