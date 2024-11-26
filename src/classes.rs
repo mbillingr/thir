@@ -164,7 +164,7 @@ impl EnvTransformer {
 
     pub fn add_inst(ps: Vec<Pred>, p: Pred) -> Self {
         EnvTransformer(Rc::new(move |ce| match &p {
-            Pred::IsIn(i, _) => {
+            Pred::IsIn(i, t) => {
                 if !ce.is_defined(&i) {
                     Err("no class for instance")?
                 }
@@ -174,12 +174,11 @@ impl EnvTransformer {
                     Err("overlapping instance")?
                 }
                 let supers = ce.supers(i);
-                /*for sup in &*supers {
-                    ce.insts(sup)
-                        .iter()
-                        .find(|Qual()|
-                        .ok_or_else(|| "no instance for super class")?;
-                }*/
+                for sup in &*supers {
+                    if !ce.entail(&ps, &Pred::IsIn(sup.clone(), t.clone())) {
+                        Err(format!("superclass {sup} not implemented for {t:?}"))?
+                    }
+                }
                 let c = Class(supers, its.cons(Qual(ps.clone(), p.clone())));
                 Ok(ce.modify(i.clone(), c))
             }

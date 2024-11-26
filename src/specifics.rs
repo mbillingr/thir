@@ -110,7 +110,10 @@ pub fn add_num_classes() -> EnvTransformer {
             vec!["RealFrac".into(), "Floating".into()],
         ));
 
-    et.compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_int())))
+    et.compose(ET::add_inst(vec![], IsIn("Eq".into(), Type::t_int())))
         .compose(ET::add_inst(vec![], IsIn("Show".into(), Type::t_int())))
+        .compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_int())))
+        .compose(ET::add_inst(vec![], IsIn("Eq".into(), Type::t_double())))
+        .compose(ET::add_inst(vec![], IsIn("Show".into(), Type::t_double())))
         .compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_double())))
 }
