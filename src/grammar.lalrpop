@@ -62,18 +62,8 @@ Expl: ast::Expl = {
 }
 
 Scheme: scheme::Scheme = {
-    "forall" <(<Kind> <Ident *>)*> <Type> => {
-        let (vars, ty) = (<>);
-        let kinds = vars.iter().map(|(k, _)|k).cloned().collect();
-        let preds = vars.into_iter()
-                        .enumerate()
-                        .map(|(i, (_, cs))| cs.into_iter().map(move |c|(i,c)))
-                        .flatten()
-                        .map(|(i,c)| predicates::Pred::IsIn(c, types::Type::TGen(i)));
-        scheme::Scheme::Forall(
-            kinds,
-            qualified::Qual(preds.collect(), ty),
-        )
+    "forall" <Comma<(<Ident> <Kind> <Ident *>)>> "=>" <Type> => {
+        xst::SchemeBuilder::new(<>).build()
     }
 }
 
@@ -82,7 +72,18 @@ Kind: kinds::Kind = {
     "*" "->" <Kind> => kinds::Kind::kfun(kinds::Kind::Star, <>),
 }
 
-Type: types::Type = {}
+Type: types::Type = {
+    <SimpleType>,
+    <SimpleType> "->" <Type> => types::Type::func(<>),
+}
+
+SimpleType: types::Type = {
+    <Ident> "(" <Kind> ")" => types::Type::TVar(types::Tyvar(<>)),
+    "Int" => types::Type::t_int(),
+    "String" => types::Type::t_string(),
+    "(" <Type> <Type> ")" => types::Type::TApp(Rc::new((<>))),
+}
+
 
 Impl: ast::Impl = {
     <Ident> <Alts> => ast::Impl(<>),
@@ -135,3 +136,15 @@ Literal: ast::Literal = {
 Assump: assump::Assump = {
     // todo!
 }
+
+
+Comma<T>: Vec<T> = {
+    <mut v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
