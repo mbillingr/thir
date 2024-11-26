@@ -17,7 +17,7 @@ pub Toplevel: ast::TopLevel = {
 }
 
 DefClass: ast::DefClass = {
-    //"interface" <Ident> "{" <FuncDecl*> "}" => todo!(),
+    "interface" <Ident> ":" <Ident *> "{" <(<Ident> ":" <Scheme>) *> "}" => ast::DefClass::new(<>),
 }
 
 ImplClass: ast::ImplClass = {}

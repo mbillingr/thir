@@ -24,7 +24,7 @@ lalrpop_mod!(grammar);
 
 use crate::assumptions::Assump;
 use crate::ast_to_typeck::build_program;
-use crate::classes::ClassEnv;
+use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
 use crate::predicates::Pred;
 use crate::qualified::Qual;
@@ -42,6 +42,7 @@ fn main() {
     let ce = ClassEnv::default();
     let ce = add_core_classes().apply(&ce).unwrap();
     let ce = add_num_classes().apply(&ce).unwrap();
+    let mut ce = ce;
 
     let mut tenv = HashMap::new();
     tenv.insert("->".into(), Type::t_arrow());
@@ -74,6 +75,15 @@ fn main() {
         println!("{:?}", top);
 
         match top.unwrap() {
+            ast::TopLevel::DefClass(dc) => {
+                let et = EnvTransformer::add_class(dc.name, dc.super_classes);
+                ce = et.apply(&ce).unwrap();
+
+                for m in dc.methods {
+                    todo!()
+                }
+            }
+
             ast::TopLevel::BindGroup(bg) => {
                 let prog = build_program(vec![bg], &tenv);
                 let r = ti_program(&ce, global_assumptions.clone(), &prog);
