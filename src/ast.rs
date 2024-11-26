@@ -12,14 +12,16 @@ pub enum TopLevel {
 #[derive(Debug)]
 pub struct DefClass {
     pub name: Id,
+    pub varname: Id,
     pub super_classes: Vec<Id>,
     pub methods: Vec<(Id, Scheme)>,
 }
 
 impl DefClass {
-    pub fn new(name: Id, super_classes: Vec<Id>, methods: Vec<(Id, Scheme)>) -> Self {
+    pub fn new(name: Id, varname: Id, super_classes: Vec<Id>, methods: Vec<(Id, Scheme)>) -> Self {
         DefClass {
             name,
+            varname,
             super_classes,
             methods,
         }

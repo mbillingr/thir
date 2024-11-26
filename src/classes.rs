@@ -151,11 +151,11 @@ impl EnvTransformer {
         let sis = Rc::new(sis);
         EnvTransformer(Rc::new(move |ce| {
             if ce.is_defined(&i) {
-                Err("class {i} already defined")?
+                Err(format!("class {i} already defined"))?
             }
             for j in sis.iter() {
                 if !ce.is_defined(j) {
-                    Err("superclass {j} not defined")?
+                    Err(format!("superclass {j} not defined"))?
                 }
             }
             Ok(ce.modify(i.clone(), Class(sis.clone(), list![])))
@@ -173,7 +173,14 @@ impl EnvTransformer {
                 if qs.any(|q| overlap(&p, q)) {
                     Err("overlapping instance")?
                 }
-                let c = Class(ce.supers(i), its.cons(Qual(ps.clone(), p.clone())));
+                let supers = ce.supers(i);
+                /*for sup in &*supers {
+                    ce.insts(sup)
+                        .iter()
+                        .find(|Qual()|
+                        .ok_or_else(|| "no instance for super class")?;
+                }*/
+                let c = Class(supers, its.cons(Qual(ps.clone(), p.clone())));
                 Ok(ce.modify(i.clone(), c))
             }
         }))

@@ -23,7 +23,7 @@ mod unification;
 lalrpop_mod!(grammar);
 
 use crate::assumptions::Assump;
-use crate::ast_to_typeck::build_program;
+use crate::ast_to_typeck::{build_program, build_scheme};
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
 use crate::predicates::Pred;
@@ -31,7 +31,7 @@ use crate::qualified::Qual;
 use crate::scheme::Scheme;
 use crate::specific_inference::{ti_program, Alt, BindGroup, Expl, Expr, Literal, Program};
 use crate::specifics::{add_core_classes, add_num_classes};
-use crate::types::Type;
+use crate::types::{Tycon, Type, Tyvar};
 use lalrpop_util::lalrpop_mod;
 use std::collections::HashMap;
 use std::io::BufRead;
@@ -76,12 +76,18 @@ fn main() {
 
         match top.unwrap() {
             ast::TopLevel::DefClass(dc) => {
-                let et = EnvTransformer::add_class(dc.name, dc.super_classes);
+                let et = EnvTransformer::add_class(dc.name.clone(), dc.super_classes);
                 ce = et.apply(&ce).unwrap();
 
-                for m in dc.methods {
-                    todo!()
+                let mut local_tenv = tenv.clone();
+                local_tenv.insert(dc.varname.clone(), Type::TGen(0));
+                for (i, mut sc) in dc.methods {
+                    sc.genvars
+                        .insert(0, (dc.varname.clone(), Kind::Star, vec![dc.name.clone()]));
+                    let sc = build_scheme(sc, &local_tenv);
+                    global_assumptions.push(Assump { i, sc });
                 }
+                println!("{:#?}", global_assumptions);
             }
 
             ast::TopLevel::ImplClass(ic) => {
