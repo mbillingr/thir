@@ -318,12 +318,6 @@ fn ti_impls(
     }
 }
 
-/// helper for parsing BindGroup
-pub enum Bind {
-    Explicit(Expl),
-    Mutual(Vec<Impl>),
-}
-
 #[derive(Debug)]
 pub struct BindGroup(pub Vec<Expl>, pub Vec<Vec<Impl>>);
 

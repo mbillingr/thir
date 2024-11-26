@@ -3,7 +3,8 @@
 
 mod ambiguity;
 mod assumptions;
-mod ast_extra;
+mod ast;
+mod ast_to_typeck;
 mod classes;
 mod instantiate;
 mod kinds;
@@ -22,6 +23,7 @@ mod unification;
 lalrpop_mod!(grammar);
 
 use crate::assumptions::Assump;
+use crate::ast_to_typeck::build_program;
 use crate::classes::ClassEnv;
 use crate::kinds::Kind;
 use crate::predicates::Pred;
@@ -31,6 +33,7 @@ use crate::specific_inference::{ti_program, Alt, BindGroup, Expl, Expr, Literal,
 use crate::specifics::{add_core_classes, add_num_classes};
 use crate::types::Type;
 use lalrpop_util::lalrpop_mod;
+use std::collections::HashMap;
 use std::io::BufRead;
 
 type Result<T> = std::result::Result<T, String>;
@@ -39,6 +42,11 @@ fn main() {
     let ce = ClassEnv::default();
     let ce = add_core_classes().apply(&ce).unwrap();
     let ce = add_num_classes().apply(&ce).unwrap();
+
+    let mut tenv = HashMap::new();
+    tenv.insert("->".into(), Type::t_arrow());
+    tenv.insert("Int".into(), Type::t_int());
+    tenv.insert("String".into(), Type::t_string());
 
     // todo: these should be populated by class declarations
     //       actually, they should be accessed using Expr::Const
@@ -55,14 +63,19 @@ fn main() {
 
     for line in std::io::stdin().lock().lines() {
         let line = line.unwrap();
-        let prog = grammar::ProgramParser::new().parse(&line);
-        println!("{:?}", prog);
+        let top = grammar::ToplevelParser::new().parse(&line);
+        println!("{:?}", top);
 
-        let r = ti_program(&ce, global_assumptions.clone(), &prog.unwrap());
-        println!("{r:#?}");
-
-        if let Ok(ass) = r {
-            global_assumptions.extend(ass)
+        match top.unwrap() {
+            ast::TopLevel::BindGroup(bg) => {
+                let prog = build_program(vec![bg], &tenv);
+                let r = ti_program(&ce, global_assumptions.clone(), &prog);
+                println!("{r:#?}");
+                if let Ok(ass) = r {
+                    global_assumptions.extend(ass)
+                }
+            }
+            _ => todo!(),
         }
     }
 

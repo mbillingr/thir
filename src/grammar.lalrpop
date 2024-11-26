@@ -1,15 +1,6 @@
-use std::rc::Rc;
 use std::str::FromStr;
-use crate::assumptions as assump;
-use crate::ast_extra as xst;
 use crate::kinds;
-use crate::predicates;
-use crate::qualified;
-use crate::scheme;
-use crate::specific_inference as ast;
-use crate::types;
-use crate::lists;
-use crate::swap;
+use crate::ast;
 
 grammar;
 
@@ -19,41 +10,25 @@ Ident: crate::Id = <s:r"[a-zA-Z_][a-zA-Z0-9_]*"> => s.to_string();
 String: String = <s:r#""[^"]*""#> => s[1..s.len()-1].to_string();
 Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
 
-pub Toplevel: xst::TopLevel = {
-    <DefClass> => xst::TopLevel::DefClass(<>),
-    <ImplClass> => xst::TopLevel::ImplClass(<>),
-    <BindGroup> => xst::TopLevel::BindGroup(<>),
+pub Toplevel: ast::TopLevel = {
+    <DefClass> => ast::TopLevel::DefClass(<>),
+    <ImplClass> => ast::TopLevel::ImplClass(<>),
+    <BindGroup> => ast::TopLevel::BindGroup(<>),
 }
 
-DefClass: xst::DefClass = {
+DefClass: ast::DefClass = {
     //"interface" <Ident> "{" <FuncDecl*> "}" => todo!(),
 }
 
-ImplClass: xst::ImplClass = {}
-
-pub Program: ast::Program = {
-    <BindGroup *> => ast::Program(<>),
-}
+ImplClass: ast::ImplClass = {}
 
 BindGroup: ast::BindGroup = {
-    "{" <Bind *> "}" => {
-        let mut explicit = vec![];
-        let mut implicit = vec![];
-
-        for bind in <> {
-            match bind {
-                ast::Bind::Explicit(e) => explicit.push(e),
-                ast::Bind::Mutual(m) => implicit.push(m),
-            }
-        }
-
-        ast::BindGroup(explicit, implicit)
-    }
+    "{" <Bind *> "}" => ast::BindGroup(<>),
 }
 
 Bind: ast::Bind = {
     <Expl> => ast::Bind::Explicit(<>),
-    <Impl> => ast::Bind::Mutual(vec![<>]),
+    <Impl> => ast::Bind::Implicit(<>),
     "mutual" "{" <Impl *> "}" => ast::Bind::Mutual(<>)
 }
 
@@ -61,9 +36,9 @@ Expl: ast::Expl = {
     <Ident> ":" <Scheme> <Alts> => ast::Expl(<>),
 }
 
-Scheme: scheme::Scheme = {
+Scheme: ast::Scheme = {
     "forall" <Comma<(<Ident> <Kind> <Ident *>)>> "=>" <Type> => {
-        xst::SchemeBuilder::new(<>).build()
+        ast::Scheme::new(<>)
     }
 }
 
@@ -72,16 +47,14 @@ Kind: kinds::Kind = {
     "*" "->" <Kind> => kinds::Kind::kfun(kinds::Kind::Star, <>),
 }
 
-Type: types::Type = {
+Type: ast::Type = {
     <SimpleType>,
-    <SimpleType> "->" <Type> => types::Type::func(<>),
+    <SimpleType> "->" <Type> => ast::Type::func(<>),
 }
 
-SimpleType: types::Type = {
-    <Ident> "(" <Kind> ")" => types::Type::TVar(types::Tyvar(<>)),
-    "Int" => types::Type::t_int(),
-    "String" => types::Type::t_string(),
-    "(" <Type> <Type> ")" => types::Type::TApp(Rc::new((<>))),
+SimpleType: ast::Type = {
+    <Ident> => ast::Type::Named(<>),
+    "(" <Type> <Type> ")" => ast::Type::apply(<>),
 }
 
 
@@ -105,25 +78,17 @@ Alt: ast::Alt = {
 Pat: ast::Pat = {
     <Ident> => ast::Pat::PVar(<>),
     "_" => ast::Pat::PWildcard,
-    "(" <RcPat> ")" "as" <Ident> => swap!(ast::Pat::PAs, <>),
+    "(" <Pat> ")" "as" <Ident> => ast::Pat::pas(<>),
     <Literal> => ast::Pat::PLit(<>),
     <Ident> "+" <Int> => ast::Pat::PNpk(<>),
-    "(" <Assump> <Pat*> ")" => ast::Pat::PCon(<>),
-}
-
-RcPat: Rc<ast::Pat> = {
-    <Pat> => Rc::new(<>),
+    //"(" <Assump> <Pat*> ")" => ast::Pat::PCon(<>),
 }
 
 Expr: ast::Expr = {
     <Ident> => ast::Expr::Var(<>),
     <Literal> => ast::Expr::Lit(<>),
-    "(" <RcExpr> <RcExpr> ")" => ast::Expr::App(<>),
-    "let" <BindGroup> "in" <RcExpr> => ast::Expr::Let(<>),
-}
-
-RcExpr: Rc<ast::Expr> = {
-    <Expr> => Rc::new(<>)
+    "(" <Expr> <Expr> ")" => ast::Expr::app(<>),
+    "let" <BindGroup> "in" <Expr> => ast::Expr::let_(<>),
 }
 
 Literal: ast::Literal = {
@@ -131,10 +96,6 @@ Literal: ast::Literal = {
     <Flt> => ast::Literal::Rat(<>),
     <Char> => ast::Literal::Char(<>),
     <String> => ast::Literal::Str(<>),
-}
-
-Assump: assump::Assump = {
-    // todo!
 }
 
 

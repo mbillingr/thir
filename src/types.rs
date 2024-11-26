@@ -49,21 +49,6 @@ impl Type {
     pub fn tapp(a: Type, b: Type) -> Type {
         Type::TApp(Rc::new((a, b)))
     }
-
-    pub fn subst(&self, subs: &HashMap<Id, (Type, Kind)>) -> Self {
-        match self {
-            Type::TVar(tv) => match subs.get(&tv.0) {
-                Some((t, k)) => {
-                    assert_eq!(k, &tv.1, "Cannot substitute variable with different kind");
-                    t.clone()
-                }
-                None => self.clone(),
-            },
-            Type::TCon(_) => self.clone(),
-            Type::TApp(app) => Type::TApp(Rc::new((app.0.subst(subs), app.1.subst(subs)))),
-            Type::TGen(_) => self.clone(),
-        }
-    }
 }
 
 impl HasKind for Tyvar {
