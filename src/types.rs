@@ -23,6 +23,10 @@ pub enum Type {
 
     /// A generic (quantified) type variable
     TGen(Int),
+
+    /// Unknown types can occur in type constructors that don't bind all generic params.
+    /// e.g. in `data Option a = None | Some a`, `a` will be unknown in the `None` constructor.
+    Unknown,
 }
 
 impl Debug for Type {
@@ -32,6 +36,7 @@ impl Debug for Type {
             Type::TCon(tc) => write!(f, "{}", tc.0),
             Type::TApp(rc) => write!(f, "({:?} {:?})", rc.0, rc.1),
             Type::TGen(k) => write!(f, "'{k}"),
+            Type::Unknown => write!(f, "?"),
         }
     }
 }
@@ -73,6 +78,7 @@ impl HasKind for Type {
                 _ => Err("Invalid Kind in TApp")?,
             },
             Type::TGen(_) => panic!("Don't know what to do :(   (maybe ignore somehow?)"),
+            Type::Unknown => unreachable!(),
         }
     }
 }

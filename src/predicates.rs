@@ -33,6 +33,7 @@ impl Pred {
                 Type::TCon(_) => false,
                 Type::TApp(app) => hnf(&app.0),
                 Type::TGen(_) => panic!("don't know what to do!"),
+                Type::Unknown => unreachable!("at least, I hope it's unreachable"),
             }
         }
 

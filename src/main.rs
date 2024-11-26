@@ -23,7 +23,7 @@ mod unification;
 lalrpop_mod!(grammar);
 
 use crate::assumptions::Assump;
-use crate::ast_to_typeck::{build_program, build_scheme, build_type};
+use crate::ast_to_typeck::{build_program, build_scheme, build_type, build_typeargs};
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
 use crate::predicates::Pred;
@@ -50,8 +50,6 @@ fn main() {
     tenv.insert("String".into(), Type::t_string());
     tenv.insert("[]".into(), Type::t_list());
 
-    // todo: these should be populated by class declarations
-    //       actually, they should be accessed using Expr::Const
     let mut global_assumptions = vec![
         Assump {
             i: "show".into(),
@@ -98,16 +96,41 @@ fn main() {
             }
 
             ast::TopLevel::DataType(dt) => {
-                let dty = Type::TCon(Tycon(dt.typename.clone(), Kind::Star));
+                let type_arity = dt.genvars.len();
+                let kind = Kind::ty_constructor(type_arity);
+                let dty = Type::TCon(Tycon(dt.typename.clone(), kind));
                 tenv.insert(dt.typename.clone(), dty.clone());
+
+                let mut method_tenv = tenv.clone();
+                let (kinds, preds) = build_typeargs(dt.genvars, &mut method_tenv);
+
                 for (i, params) in dt.constructors {
-                    let mut ty = dty.clone();
-                    for p in params.into_iter().rev() {
-                        ty = Type::func(build_type(p, &tenv), ty);
+                    let mut args: Vec<_> = params
+                        .into_iter()
+                        .map(|p| build_type(p, &method_tenv))
+                        .collect();
+
+                    // apply the type constructor
+                    let mut tc_args = vec![Type::Unknown; type_arity];
+                    for a in args.iter() {
+                        match a {
+                            Type::TGen(k) => tc_args[*k] = a.clone(),
+                            _ => todo!("{:?}", a),
+                        }
                     }
+                    let mut ty = dty.clone();
+                    for a in tc_args {
+                        ty = Type::tapp(ty, a)
+                    }
+
+                    // constructor arguments
+                    for a in args.into_iter().rev() {
+                        ty = Type::func(a, ty);
+                    }
+
                     global_assumptions.push(Assump {
                         i,
-                        sc: Scheme::Forall(list![], Qual(vec![], ty)),
+                        sc: Scheme::Forall(kinds.clone(), Qual(preds.clone(), ty)),
                     });
                 }
             }

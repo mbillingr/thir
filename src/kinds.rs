@@ -35,6 +35,13 @@ impl Kind {
     pub fn kfun(a: Kind, b: Kind) -> Kind {
         Kind::Kfun(Rc::new((a, b)))
     }
+
+    pub fn ty_constructor(arity: usize) -> Kind {
+        if arity == 0 {
+            return Kind::Star;
+        }
+        Self::kfun(Kind::Star, Self::ty_constructor(arity - 1))
+    }
 }
 
 pub trait HasKind {

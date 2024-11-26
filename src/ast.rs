@@ -45,12 +45,18 @@ impl ImplClass {
 #[derive(Debug)]
 pub struct DataType {
     pub typename: Id,
+    pub genvars: Vec<(Id, Kind, Vec<Id>)>,
     pub constructors: Vec<(Id, Vec<Type>)>,
 }
 
 impl DataType {
-    pub fn new(typename: Id, constructors: Vec<(Id, Vec<Type>)>) -> Self {
+    pub fn new(
+        typename: Id,
+        genvars: Vec<(Id, Kind, Vec<Id>)>,
+        constructors: Vec<(Id, Vec<Type>)>,
+    ) -> Self {
         DataType {
+            genvars,
             typename,
             constructors,
         }

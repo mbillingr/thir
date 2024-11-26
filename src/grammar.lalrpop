@@ -26,7 +26,7 @@ ImplClass: ast::ImplClass = {
 }
 
 DataType: ast::DataType = {
-    "data" <Ident> "=" <PipeList<(<Ident> <Type*>)>> => ast::DataType::new(<>),
+    "data" <Ident> <SchemeArg *> "=" <PipeList<(<Ident> <Type*>)>> => ast::DataType::new(<>),
 }
 
 BindGroup: ast::BindGroup = {
@@ -44,7 +44,7 @@ Expl: ast::Expl = {
 }
 
 Scheme: ast::Scheme = {
-    "forall" <CommaList<SchemeArg>> "=>" <Type> => {
+    "forall" <SchemeArg *> "=>" <Type> => {
         ast::Scheme::new(<>)
     },
 
@@ -52,12 +52,14 @@ Scheme: ast::Scheme = {
 }
 
 SchemeArg: (crate::Id, kinds::Kind, Vec<crate::Id>) = {
-    "(" <Ident> ":" <Kind> ")" <Ident *>,
+    "(" <Ident> ":" <Kind> <Ident *> ")",
 
-    <Ident> <Ident *> => {
+    "(" <Ident> <Ident *> ")" => {
         let (id, preds) = (<>);
         (id, kinds::Kind::Star, preds)
-    }
+    },
+
+    <Ident> => (<>, kinds::Kind::Star, vec![]),
 }
 
 Kind: kinds::Kind = {

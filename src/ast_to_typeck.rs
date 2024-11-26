@@ -1,4 +1,6 @@
+use crate::kinds::Kind;
 use crate::lists::List;
+use crate::predicates::Pred;
 use crate::{ast, predicates, qualified, scheme, specific_inference as si, types, Id};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -97,10 +99,23 @@ pub fn build_type(ty: ast::Type, tyenv: &HashMap<Id, types::Type>) -> types::Typ
 
 pub fn build_scheme(sc: ast::Scheme, tyenv: &HashMap<Id, types::Type>) -> scheme::Scheme {
     let mut tyenv = tyenv.clone();
+    let (kinds, preds) = build_typeargs(sc.genvars, &mut tyenv);
+
+    let ty = build_type(sc.ty, &tyenv);
+
+    let qual_ty = qualified::Qual(preds, ty);
+    scheme::Scheme::Forall(kinds, qual_ty)
+}
+
+pub fn build_typeargs(
+    genvars: Vec<(Id, Kind, Vec<Id>)>,
+    tyenv: &mut HashMap<Id, types::Type>,
+) -> (List<Kind>, Vec<Pred>) {
     let mut kinds = List::Nil;
     let mut idx = 0;
     let mut preds = vec![];
-    for (name, kind, constraints) in sc.genvars {
+
+    for (name, kind, constraints) in genvars {
         kinds = kinds.cons(kind);
         tyenv.insert(name, types::Type::TGen(idx));
 
@@ -112,8 +127,5 @@ pub fn build_scheme(sc: ast::Scheme, tyenv: &HashMap<Id, types::Type>) -> scheme
         idx += 1;
     }
 
-    let ty = build_type(sc.ty, &tyenv);
-
-    let qual_ty = qualified::Qual(preds, ty);
-    scheme::Scheme::Forall(kinds, qual_ty)
+    (kinds, preds)
 }
