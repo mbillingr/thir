@@ -22,7 +22,7 @@ DefClass: ast::DefClass = {
 }
 
 ImplClass: ast::ImplClass = {
-    "impl" <Ident> "for" <Ident> <BindGroup> => ast::ImplClass::new(<>),
+    "impl" <Ident> "for" <Ident> "{" <Impl *> "}" => ast::ImplClass::new(<>),
 }
 
 DataType: ast::DataType = {

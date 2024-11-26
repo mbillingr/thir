@@ -9,7 +9,7 @@ use crate::scheme::Scheme;
 use crate::substitutions::Types;
 use crate::type_inference::TI;
 use crate::types::{Type, Tyvar};
-use crate::{Id, Int};
+use crate::Id;
 use std::iter::once;
 use std::rc::Rc;
 

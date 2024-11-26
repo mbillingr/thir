@@ -71,6 +71,13 @@ impl<T> List<T> {
         List::Elem(Rc::new((x, self.clone())))
     }
 
+    pub fn decons(&self) -> Option<(&T, &Self)> {
+        match self {
+            List::Nil => None,
+            List::Elem(e) => Some((&e.0, &e.1)),
+        }
+    }
+
     pub fn iter(&self) -> ListIter<T> {
         ListIter(&self)
     }

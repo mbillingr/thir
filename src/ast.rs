@@ -33,11 +33,11 @@ impl DefClass {
 pub struct ImplClass {
     pub cls: Id,
     pub ty: Id,
-    pub methods: BindGroup,
+    pub methods: Vec<Impl>,
 }
 
 impl ImplClass {
-    pub fn new(cls: Id, ty: Id, methods: BindGroup) -> Self {
+    pub fn new(cls: Id, ty: Id, methods: Vec<Impl>) -> Self {
         ImplClass { cls, ty, methods }
     }
 }
@@ -116,7 +116,7 @@ pub enum Bind {
 #[derive(Debug)]
 pub struct BindGroup(pub Vec<Bind>);
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Type {
     Named(Id),
     Apply(Box<Type>, Box<Type>),
@@ -139,7 +139,7 @@ impl Type {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Scheme {
     pub genvars: Vec<(Id, Kind, Vec<Id>)>,
     pub ty: Type,

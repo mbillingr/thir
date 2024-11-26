@@ -23,7 +23,7 @@ mod unification;
 lalrpop_mod!(grammar);
 
 use crate::assumptions::Assump;
-use crate::ast_to_typeck::{build_program, build_scheme, build_type, build_typeargs};
+use crate::ast_to_typeck::{build_alts, build_program, build_scheme, build_type, build_typeargs};
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
 use crate::predicates::Pred;
@@ -31,7 +31,7 @@ use crate::qualified::Qual;
 use crate::scheme::Scheme;
 use crate::specific_inference::{ti_program, Alt, BindGroup, Expl, Expr, Literal, Program};
 use crate::specifics::{add_core_classes, add_num_classes};
-use crate::types::{Tycon, Type, Tyvar};
+use crate::types::{Tycon, Type};
 use lalrpop_util::lalrpop_mod;
 use std::collections::HashMap;
 use std::io::BufRead;
@@ -44,9 +44,13 @@ fn main() {
     let ce = add_num_classes().apply(&ce).unwrap();
     let mut ce = ce;
 
+    // could store these directly inside each class, but this is easier for now.
+    let mut methods = HashMap::new();
+
     let mut tenv = HashMap::new();
     tenv.insert("->".into(), Type::t_arrow());
     tenv.insert("Int".into(), Type::t_int());
+    tenv.insert("Double".into(), Type::t_double());
     tenv.insert("String".into(), Type::t_string());
     tenv.insert("[]".into(), Type::t_list());
 
@@ -80,6 +84,12 @@ fn main() {
                 let mut local_tenv = tenv.clone();
                 local_tenv.insert(dc.varname.clone(), Type::TGen(0));
                 for (i, mut sc) in dc.methods {
+                    methods
+                        .entry(dc.name.clone())
+                        .or_insert(HashMap::new())
+                        .insert(i.clone(), (dc.varname.clone(), sc.clone()));
+
+                    // insert the "self" type as the first generic
                     sc.genvars
                         .insert(0, (dc.varname.clone(), Kind::Star, vec![dc.name.clone()]));
                     let sc = build_scheme(sc, &local_tenv);
@@ -89,10 +99,36 @@ fn main() {
             }
 
             ast::TopLevel::ImplClass(ic) => {
+                let mut required_methods = methods.get(&ic.cls).cloned().unwrap_or(HashMap::new());
+
                 let ty = tenv.get(&ic.ty).expect("unknown type").clone();
-                let et = EnvTransformer::add_inst(vec![], Pred::IsIn(ic.cls, ty));
+                let et = EnvTransformer::add_inst(vec![], Pred::IsIn(ic.cls, ty.clone()));
                 ce = et.apply(&ce).unwrap();
-                // todo: check method definitions
+
+                let mut scenv = tenv.clone();
+
+                let mut expls = vec![];
+                for mi in ic.methods {
+                    let name = mi.0;
+                    let (var, sc) = required_methods.remove(&name).expect("unexpected method");
+
+                    scenv.insert(var, ty.clone()); // actually, var is the same for every method
+
+                    let alts = build_alts(mi.1, &tenv);
+
+                    expls.push(Expl(name, build_scheme(sc, &scenv), alts));
+                }
+
+                let r = ti_program(
+                    &ce,
+                    global_assumptions.clone(),
+                    &Program(vec![BindGroup(expls, vec![])]),
+                );
+                println!("{r:#?}");
+
+                if !required_methods.is_empty() {
+                    panic!("missing method impls: {:?}", required_methods);
+                }
             }
 
             ast::TopLevel::DataType(dt) => {
@@ -105,7 +141,7 @@ fn main() {
                 let (kinds, preds) = build_typeargs(dt.genvars, &mut method_tenv);
 
                 for (i, params) in dt.constructors {
-                    let mut args: Vec<_> = params
+                    let args: Vec<_> = params
                         .into_iter()
                         .map(|p| build_type(p, &method_tenv))
                         .collect();

@@ -4,7 +4,6 @@ Types
 
 use crate::kinds::{HasKind, Kind};
 use crate::{Id, Int};
-use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
