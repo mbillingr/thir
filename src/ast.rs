@@ -6,6 +6,7 @@ use crate::Id;
 pub enum TopLevel {
     DefClass(DefClass),
     ImplClass(ImplClass),
+    DataType(DataType),
     BindGroup(BindGroup),
 }
 
@@ -38,6 +39,21 @@ pub struct ImplClass {
 impl ImplClass {
     pub fn new(cls: Id, ty: Id, methods: BindGroup) -> Self {
         ImplClass { cls, ty, methods }
+    }
+}
+
+#[derive(Debug)]
+pub struct DataType {
+    pub typename: Id,
+    pub constructors: Vec<(Id, Vec<Type>)>,
+}
+
+impl DataType {
+    pub fn new(typename: Id, constructors: Vec<(Id, Vec<Type>)>) -> Self {
+        DataType {
+            typename,
+            constructors,
+        }
     }
 }
 

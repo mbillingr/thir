@@ -13,6 +13,7 @@ Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
 pub Toplevel: ast::TopLevel = {
     <DefClass> => ast::TopLevel::DefClass(<>),
     <ImplClass> => ast::TopLevel::ImplClass(<>),
+    <DataType> => ast::TopLevel::DataType(<>),
     <BindGroup> => ast::TopLevel::BindGroup(<>),
 }
 
@@ -22,6 +23,10 @@ DefClass: ast::DefClass = {
 
 ImplClass: ast::ImplClass = {
     "impl" <Ident> "for" <Ident> <BindGroup> => ast::ImplClass::new(<>),
+}
+
+DataType: ast::DataType = {
+    "data" <Ident> "=" <PipeList<(<Ident> <Type*>)>> => ast::DataType::new(<>),
 }
 
 BindGroup: ast::BindGroup = {
@@ -39,7 +44,7 @@ Expl: ast::Expl = {
 }
 
 Scheme: ast::Scheme = {
-    "forall" <Comma<SchemeArg>> "=>" <Type> => {
+    "forall" <CommaList<SchemeArg>> "=>" <Type> => {
         ast::Scheme::new(<>)
     },
 
@@ -115,8 +120,18 @@ Literal: ast::Literal = {
 }
 
 
-Comma<T>: Vec<T> = {
+CommaList<T>: Vec<T> = {
     <mut v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
+PipeList<T>: Vec<T> = {
+    <mut v:(<T> "|")*> <e:T?> => match e {
         None => v,
         Some(e) => {
             v.push(e);

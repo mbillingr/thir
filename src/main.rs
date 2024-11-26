@@ -23,7 +23,7 @@ mod unification;
 lalrpop_mod!(grammar);
 
 use crate::assumptions::Assump;
-use crate::ast_to_typeck::{build_program, build_scheme};
+use crate::ast_to_typeck::{build_program, build_scheme, build_type};
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
 use crate::predicates::Pred;
@@ -95,6 +95,21 @@ fn main() {
                 let et = EnvTransformer::add_inst(vec![], Pred::IsIn(ic.cls, ty));
                 ce = et.apply(&ce).unwrap();
                 // todo: check method definitions
+            }
+
+            ast::TopLevel::DataType(dt) => {
+                let dty = Type::TCon(Tycon(dt.typename.clone(), Kind::Star));
+                tenv.insert(dt.typename.clone(), dty.clone());
+                for (i, params) in dt.constructors {
+                    let mut ty = dty.clone();
+                    for p in params.into_iter().rev() {
+                        ty = Type::func(build_type(p, &tenv), ty);
+                    }
+                    global_assumptions.push(Assump {
+                        i,
+                        sc: Scheme::Forall(list![], Qual(vec![], ty)),
+                    });
+                }
             }
 
             ast::TopLevel::BindGroup(bg) => {
