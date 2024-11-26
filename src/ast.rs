@@ -94,6 +94,10 @@ impl Type {
             Box::new(b),
         )
     }
+
+    pub fn list(a: Type) -> Type {
+        Type::Apply(Box::new(Type::Named("[]".into())), Box::new(a))
+    }
 }
 
 #[derive(Debug)]

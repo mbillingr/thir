@@ -33,7 +33,13 @@ fn var_bind(u: &Tyvar, t: &Type) -> crate::Result<Subst> {
     }
 
     if u.kind() != t.kind() {
-        Err("kinds do not match")?
+        Err(format!(
+            "kinds do not match {}:{:?} := {:?}:{:?}",
+            u.0,
+            u.1,
+            t,
+            t.kind()
+        ))?
     }
 
     Ok(Subst::single(u.clone(), t.clone()))

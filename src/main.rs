@@ -47,19 +47,26 @@ fn main() {
     tenv.insert("->".into(), Type::t_arrow());
     tenv.insert("Int".into(), Type::t_int());
     tenv.insert("String".into(), Type::t_string());
+    tenv.insert("[]".into(), Type::t_list());
 
     // todo: these should be populated by class declarations
     //       actually, they should be accessed using Expr::Const
-    let mut global_assumptions = vec![Assump {
-        i: "show".into(),
-        sc: Scheme::Forall(
-            list![Kind::Star],
-            Qual(
-                vec![Pred::IsIn("Show".into(), Type::TGen(0))],
-                Type::func(Type::TGen(0), Type::t_string()),
+    let mut global_assumptions = vec![
+        Assump {
+            i: "show".into(),
+            sc: Scheme::Forall(
+                list![Kind::Star],
+                Qual(
+                    vec![Pred::IsIn("Show".into(), Type::TGen(0))],
+                    Type::func(Type::TGen(0), Type::t_string()),
+                ),
             ),
-        ),
-    }];
+        },
+        Assump {
+            i: "abc".into(),
+            sc: Scheme::Forall(list![], Qual(vec![], Type::list(Type::t_int()))),
+        },
+    ];
 
     for line in std::io::stdin().lock().lines() {
         let line = line.unwrap();

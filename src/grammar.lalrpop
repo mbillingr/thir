@@ -37,14 +37,26 @@ Expl: ast::Expl = {
 }
 
 Scheme: ast::Scheme = {
-    "forall" <Comma<(<Ident> <Kind> <Ident *>)>> "=>" <Type> => {
+    "forall" <Comma<SchemeArg>> "=>" <Type> => {
         ast::Scheme::new(<>)
+    },
+
+    <Type> => ast::Scheme::new(vec![], <>),
+}
+
+SchemeArg: (crate::Id, kinds::Kind, Vec<crate::Id>) = {
+    "(" <Ident> ":" <Kind> ")" <Ident *>,
+
+    <Ident> <Ident *> => {
+        let (id, preds) = (<>);
+        (id, kinds::Kind::Star, preds)
     }
 }
 
 Kind: kinds::Kind = {
     "*" => kinds::Kind::Star,
     "*" "->" <Kind> => kinds::Kind::kfun(kinds::Kind::Star, <>),
+    "(" <Kind> ")" "->" <Kind> => kinds::Kind::kfun(<>),
 }
 
 Type: ast::Type = {
@@ -54,7 +66,9 @@ Type: ast::Type = {
 
 SimpleType: ast::Type = {
     <Ident> => ast::Type::Named(<>),
+    "[" <Type> "]" => ast::Type::list(<>),
     "(" <Type> <Type> ")" => ast::Type::apply(<>),
+    "(" <Type> ")",
 }
 
 
