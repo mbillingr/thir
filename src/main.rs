@@ -45,13 +45,20 @@ fn main() {
     let mut ctx = GlobalContext::new();
 
     for line in std::io::stdin().lock().lines() {
-        let line = line.unwrap();
-        let top = grammar::ToplevelParser::new().parse(&line);
-        println!("{:?}", top);
-
-        let top = top.unwrap();
-        ctx.exec_toplevel(top);
+        match rep(&mut ctx, line.unwrap()) {
+            Ok(()) => println!("OK"),
+            Err(err) => println!("Error: {}", err),
+        }
     }
+}
+
+fn rep(ctx: &mut GlobalContext, line: String) -> Result<()> {
+    let top = grammar::ToplevelParser::new()
+        .parse(&line)
+        .map_err(|e| e.to_string())?;
+    println!("AST: {:?}", top);
+
+    ctx.exec_toplevel(top)
 }
 
 struct GlobalContext {
@@ -106,7 +113,7 @@ impl GlobalContext {
         }
     }
 
-    fn exec_toplevel(&mut self, top: ast::TopLevel) {
+    fn exec_toplevel(&mut self, top: ast::TopLevel) -> Result<()> {
         match top {
             ast::TopLevel::DefClass(dc) => self.define_class(dc),
             ast::TopLevel::ImplClass(ic) => self.implement_class(ic),
@@ -115,9 +122,9 @@ impl GlobalContext {
         }
     }
 
-    fn define_class(&mut self, dc: DefClass) {
+    fn define_class(&mut self, dc: DefClass) -> Result<()> {
         let et = EnvTransformer::add_class(dc.name.clone(), dc.super_classes);
-        self.class_env = et.apply(&self.class_env).unwrap();
+        self.class_env = et.apply(&self.class_env)?;
 
         let mut local_tenv = self.type_env.clone();
         local_tenv.insert(dc.varname.clone(), Type::TGen(0));
@@ -134,21 +141,28 @@ impl GlobalContext {
             self.assumptions.push(Assump { i, sc });
         }
         println!("{:#?}", self.assumptions);
+        Ok(())
     }
 
-    fn implement_class(&mut self, ic: ImplClass) {
+    fn implement_class(&mut self, ic: ImplClass) -> Result<()> {
         let mut required_methods = self.methods.get(&ic.cls).cloned().unwrap_or(HashMap::new());
 
-        let ty = self.type_env.get(&ic.ty).expect("unknown type").clone();
+        let ty = self
+            .type_env
+            .get(&ic.ty)
+            .ok_or_else(|| format!("unknown type: {}", ic.ty))?
+            .clone();
         let et = EnvTransformer::add_inst(vec![], Pred::IsIn(ic.cls, ty.clone()));
-        self.class_env = et.apply(&self.class_env).unwrap();
+        let class_env = et.apply(&self.class_env)?;
 
         let mut scenv = self.type_env.clone();
 
         let mut expls = vec![];
         for mi in ic.methods {
             let name = mi.0;
-            let (var, sc) = required_methods.remove(&name).expect("unexpected method");
+            let (var, sc) = required_methods
+                .remove(&name)
+                .ok_or_else(|| format!("unexpected method: {name}"))?;
 
             scenv.insert(var, ty.clone()); // actually, var is the same for every method
 
@@ -158,18 +172,22 @@ impl GlobalContext {
         }
 
         let r = ti_program(
-            &self.class_env,
+            &class_env,
             self.assumptions.clone(),
             &Program(vec![BindGroup(expls, vec![])]),
-        );
+        )?;
         println!("{r:#?}");
 
         if !required_methods.is_empty() {
-            panic!("missing method impls: {:?}", required_methods);
+            return Err(format!("missing method impls: {:?}", required_methods));
         }
+
+        self.class_env = class_env;
+
+        Ok(())
     }
 
-    fn define_datatype(&mut self, dt: DataType) {
+    fn define_datatype(&mut self, dt: DataType) -> Result<()> {
         let type_arity = dt.genvars.len();
         let kind = Kind::ty_constructor(type_arity);
         let dty = Type::TCon(Tycon(dt.typename.clone(), kind));
@@ -207,15 +225,16 @@ impl GlobalContext {
                 sc: Scheme::Forall(kinds.clone(), Qual(preds.clone(), ty)),
             });
         }
+
+        Ok(())
     }
 
-    fn define_globals(&mut self, bg: ast::BindGroup) {
+    fn define_globals(&mut self, bg: ast::BindGroup) -> Result<()> {
         let prog = build_program(vec![bg], &self.type_env);
-        let r = ti_program(&self.class_env, self.assumptions.clone(), &prog);
+        let r = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
         println!("{r:#?}");
-        if let Ok(ass) = r {
-            self.assumptions.extend(ass)
-        }
+        self.assumptions.extend(r);
+        Ok(())
     }
 }
 
