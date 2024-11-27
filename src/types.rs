@@ -8,7 +8,7 @@ use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
 /// The type of a value
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub enum Type {
     /// A type variable
     TVar(Tyvar),
@@ -60,17 +60,42 @@ fn write_tapp(rator: &Type, rand: &Type, f: &mut Formatter<'_>) -> std::fmt::Res
 }
 
 /// A type variable
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Tyvar(pub Id, pub Kind);
 
 /// A type constant
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Tycon(pub Id, pub Kind);
 
 impl Type {
     /// construct a type application (convenience method)
     pub fn tapp(a: Type, b: Type) -> Type {
         Type::TApp(Rc::new((a, b)))
+    }
+
+    /// assuming this is a function type, return all argument types
+    pub fn fn_arg_types(&self) -> Vec<&Type> {
+        let mut args = vec![];
+        let mut t = self;
+        while let Some((arg, ret)) = t.as_fn() {
+            args.push(arg);
+            t = ret;
+        }
+        args
+    }
+
+    /// get argument and return types, if this is a function type
+    pub fn as_fn(&self) -> Option<(&Type, &Type)> {
+        match self {
+            Type::TApp(app1) => match &app1.0 {
+                Type::TApp(app2) => match &app2.0 {
+                    Type::TCon(Tycon(op, _)) if op == "->" => Some((&app2.1, &app1.1)),
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        }
     }
 }
 

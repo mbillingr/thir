@@ -5,7 +5,7 @@ use crate::types::Tyvar;
 use std::fmt::{Debug, Formatter};
 
 /// A qualified type is restricted by a list of predicates.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub struct Qual<T>(pub Vec<Pred>, pub T);
 
 impl<T: Debug> Debug for Qual<T> {

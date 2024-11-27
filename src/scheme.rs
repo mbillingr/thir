@@ -5,7 +5,7 @@ use crate::substitutions::{Subst, Types};
 use crate::types::{Type, Tyvar};
 use crate::Int;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Scheme {
     Forall(List<Kind>, Qual<Type>),
 }

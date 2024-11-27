@@ -384,11 +384,11 @@ pub fn ti_program(
     ce: &ClassEnv,
     ass: Vec<Assump>,
     Program(bgs): &Program,
-) -> crate::Result<Vec<Assump>> {
+) -> crate::Result<(Vec<Assump>, TI)> {
     let mut ti = TI::new();
     let (ps, as_) = ti_seq(ti_bindgroup, &mut ti, ce, ass, bgs)?;
     let s = &ti.get_subst();
     let rs = ce.reduce(&s.apply(&ps))?;
     let s_ = default_subst(ce, vec![], &rs)?;
-    Ok(s_.compose(s).apply(&as_))
+    Ok((s_.compose(s).apply(&as_), ti))
 }

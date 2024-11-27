@@ -172,7 +172,9 @@ impl GlobalContext {
             sc.genvars
                 .insert(0, (dc.varname.clone(), Kind::Star, vec![dc.name.clone()]));
             let sc = self.build_scheme(sc);
-            self.assumptions.push(Assump { i, sc });
+            self.assumptions.push(Assump { i: i.clone(), sc });
+
+            self.value_env.insert(i, interpreter::Value::method());
         }
         Ok(())
     }
@@ -205,17 +207,20 @@ impl GlobalContext {
             expls.push(Expl(name, sc_, alts));
         }
 
-        let _ = ti_program(
-            &class_env,
-            self.assumptions.clone(),
-            &Program(vec![BindGroup(expls, vec![])]),
-        )?;
+        let mut prog = Program(vec![BindGroup(expls, vec![])]);
+        let _ = ti_program(&class_env, self.assumptions.clone(), &prog)?;
 
         if !required_methods.is_empty() {
             return Err(format!("missing method impls: {:?}", required_methods));
         }
 
         self.class_env = class_env;
+
+        let ctx = interpreter::Context::new();
+        for Expl(name, sc, alts) in prog.0.pop().unwrap().0 {
+            let val = ctx.eval_alts(&alts, &self.value_env);
+            self.value_env.get(&name).unwrap().add_impl(sc, val);
+        }
 
         Ok(())
     }
@@ -253,8 +258,10 @@ impl GlobalContext {
             self.assumptions.push(assump.clone());
             self.constructors.push(assump);
 
-            self.value_env
-                .insert(i.clone(), interpreter::Value::constructor(i));
+            self.value_env.insert(
+                i.clone(),
+                interpreter::Value::constructor(dt.typename.clone(), i),
+            );
         }
 
         self.type_env = backup;
@@ -263,10 +270,10 @@ impl GlobalContext {
 
     fn define_globals(&mut self, bg: ast::BindGroup) -> Result<()> {
         let prog = self.build_program(vec![bg]);
-        let r = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
+        let (r, _) = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
         self.assumptions.extend(r);
 
-        interpreter::exec_program(&prog, &mut self.value_env);
+        interpreter::Context::new().exec_program(&prog, &mut self.value_env);
 
         Ok(())
     }
@@ -277,12 +284,12 @@ impl GlobalContext {
         let mut ti = TI::new();
         let (ps, t) = ti_expr(&mut ti, &self.class_env, &self.assumptions, &expr)?;
 
-        let s = &ti.get_subst();
+        let s = ti.get_subst();
         let rs = self.class_env.reduce(&s.apply(&ps))?;
 
         let t_ = s.apply(&t);
 
-        let value = interpreter::eval_expr(&expr, &self.value_env);
+        let value = interpreter::Context::new().eval_expr(&expr, &self.value_env);
 
         Ok(Box::new(format!("{:?}, where {:?}\n{}\n", t_, rs, value)))
     }

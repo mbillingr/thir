@@ -1,8 +1,14 @@
 use crate::assumptions::Assump;
+use crate::qualified::Qual;
+use crate::scheme::Scheme;
 use crate::specific_inference::{Alt, BindGroup, Expl, Expr, Impl, Literal, Pat, Program};
+use crate::types::{Tycon, Type, Tyvar};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+
+#[derive(Clone)]
+pub struct Context {}
 
 pub type Env = HashMap<String, Value>;
 
@@ -11,17 +17,31 @@ pub enum Value {
     Uninitialized,
     Boxed(Rc<RefCell<Self>>),
 
-    Int(i64),
+    I64(i64),
     Char(char),
-    Float(f64),
+    F64(f64),
     String(Rc<str>),
 
     Closure(Closure),
 
-    Constructor(Rc<str>, Vec<Value>),
+    Constructor(Rc<str>, Rc<str>, Vec<Value>),
+
+    Method(Rc<RefCell<HashMap<Scheme, Value>>>, Vec<Value>),
 }
 
 impl Value {
+    pub fn is_a(&self, tyname: &str) -> bool {
+        match self {
+            Value::Boxed(bx) => bx.borrow().is_a(tyname),
+            Value::I64(_) => tyname == "Int",
+            Value::Char(_) => tyname == "Char",
+            Value::F64(_) => tyname == "Double",
+            Value::String(_) => tyname == "String",
+            Value::Constructor(ty, _, _) => &**ty == tyname,
+            _ => false,
+        }
+    }
+
     pub fn boxed(self) -> Self {
         Self::Boxed(Rc::new(self.into()))
     }
@@ -33,22 +53,43 @@ impl Value {
         }
     }
 
-    pub fn constructor(tag: impl Into<Rc<str>>) -> Self {
-        Value::Constructor(tag.into(), vec![])
+    pub fn resolve(&self) -> Self {
+        match self {
+            Value::Boxed(bx) => bx.borrow().resolve(),
+            _ => self.clone(),
+        }
+    }
+
+    pub fn constructor(ty: impl Into<Rc<str>>, tag: impl Into<Rc<str>>) -> Self {
+        Value::Constructor(ty.into(), tag.into(), vec![])
     }
 
     pub fn as_constructor(&self) -> (Rc<str>, Vec<Value>) {
         match self {
             Value::Boxed(bx) => bx.borrow().as_constructor(),
-            Value::Constructor(tag, fields) => (tag.clone(), fields.clone()),
+            Value::Constructor(_, tag, fields) => (tag.clone(), fields.clone()),
             _ => panic!("expected constructor"),
+        }
+    }
+
+    pub fn method() -> Self {
+        Value::Method(Rc::new(RefCell::new(HashMap::new())), vec![])
+    }
+
+    pub fn add_impl(&self, sc: Scheme, value: Value) {
+        match self {
+            Value::Boxed(bx) => bx.borrow().add_impl(sc, value),
+            Value::Method(impls, _) => {
+                impls.borrow_mut().insert(sc, value);
+            }
+            _ => panic!("expected method"),
         }
     }
 
     pub fn as_int(&self) -> i64 {
         match self {
             Value::Boxed(bx) => bx.borrow().as_int(),
-            Value::Int(x) => *x,
+            Value::I64(x) => *x,
             _ => panic!("expected int"),
         }
     }
@@ -64,7 +105,7 @@ impl Value {
     pub fn as_float(&self) -> f64 {
         match self {
             Value::Boxed(bx) => bx.borrow().as_float(),
-            Value::Float(x) => *x,
+            Value::F64(x) => *x,
             _ => panic!("expected float"),
         }
     }
@@ -81,15 +122,16 @@ impl Value {
         match self {
             Value::Boxed(bx) => bx.borrow().apply(args),
 
-            Value::Constructor(tag, fields) => {
+            Value::Constructor(ty, tag, fields) => {
                 let mut fields = fields.clone();
                 fields.extend(args);
-                Value::Constructor(tag.clone(), fields)
+                Value::Constructor(ty.clone(), tag.clone(), fields)
             }
 
             Value::Closure(Closure {
                 alts,
                 env,
+                ctx,
                 gathered_args,
             }) => {
                 let mut gathered_args = gathered_args.clone();
@@ -100,17 +142,18 @@ impl Value {
                         return Value::Closure(Closure {
                             alts: alts.clone(),
                             env: env.clone(),
+                            ctx: ctx.clone(),
                             gathered_args,
                         });
                     }
 
                     let mut local_env = env.clone();
                     for (pat, arg) in pats.iter().zip(gathered_args.iter()) {
-                        if !match_pat(pat, arg, &mut local_env) {
+                        if !ctx.match_pat(pat, arg, &mut local_env) {
                             continue 'next_alternative;
                         }
                     }
-                    let mut result = eval_expr(body, &local_env);
+                    let mut result = ctx.eval_expr(body, &local_env);
 
                     if gathered_args.len() > pats.len() {
                         result = result.apply(gathered_args[pats.len()..].to_vec());
@@ -120,127 +163,178 @@ impl Value {
                 }
                 panic!("no pattern matched")
             }
+
+            Value::Method(impls, gathered_args) => {
+                let mut gathered_args = gathered_args.clone();
+                gathered_args.extend(args);
+
+                // todo: this late binding / dynamic dispatch feels super inefficient
+
+                for (sc, value) in impls.borrow().iter() {
+                    if scheme_matches(sc, &gathered_args) {
+                        return value.apply(gathered_args);
+                    }
+                }
+
+                Value::Method(impls.clone(), gathered_args)
+            }
+
             _ => panic!("non-callable value"),
         }
     }
 }
 
-pub fn exec_program(Program(bgs): &Program, env: &mut Env) {
-    for bg in bgs {
-        exec_bindgroup(bg, env)
+impl Context {
+    pub fn new() -> Self {
+        Context {}
     }
-}
-
-fn exec_bindgroup(BindGroup(expls, implss): &BindGroup, env: &mut Env) {
-    for Expl(id, _, alts) in expls {
-        let value = eval_alts(alts, env);
-        env.insert(id.clone(), value);
-    }
-
-    for impls in implss {
-        for Impl(id, _) in impls {
-            env.insert(id.clone(), Value::boxed(Value::Uninitialized));
-        }
-
-        for Impl(id, alts) in impls {
-            let value = eval_alts(alts, env);
-            env[id].update(value)
+    pub fn exec_program(&self, Program(bgs): &Program, env: &mut Env) {
+        for bg in bgs {
+            self.exec_bindgroup(bg, env)
         }
     }
-}
 
-fn eval_alts(alts: &Rc<Vec<Alt>>, env: &Env) -> Value {
-    if alts[0].0.is_empty() {
-        return eval_expr(&alts[0].1, env);
-    }
-
-    Value::Closure(Closure {
-        alts: alts.clone(),
-        env: env.clone(),
-        gathered_args: vec![],
-    })
-}
-
-pub fn eval_expr(expr: &Expr, env: &Env) -> Value {
-    match expr {
-        Expr::Var(x) => env.get(x).unwrap_or_else(|| panic!("unbound {x}")).clone(),
-        Expr::Lit(l) => eval_lit(l),
-        Expr::Const(_) => unimplemented!(),
-        Expr::App(rator, rand) => {
-            let rator_ = eval_expr(rator, env);
-            let rand_ = eval_expr(rand, env);
-            rator_.apply(vec![rand_])
-        }
-        Expr::Let(bg, body) => {
-            let mut local_env = env.clone();
-            exec_bindgroup(bg, &mut local_env);
-            eval_expr(body, &local_env)
-        }
-    }
-}
-
-fn eval_lit(lit: &Literal) -> Value {
-    match lit {
-        Literal::Int(x) => Value::Int(*x),
-        Literal::Char(ch) => Value::Char(*ch),
-        Literal::Rat(x) => Value::Float(*x),
-        Literal::Str(s) => Value::String(s.clone()),
-    }
-}
-
-fn match_pat(pat: &Pat, val: &Value, env: &mut Env) -> bool {
-    match pat {
-        Pat::PVar(name) => {
-            env.insert(name.clone(), val.clone());
-            true
+    fn exec_bindgroup(&self, BindGroup(expls, implss): &BindGroup, env: &mut Env) {
+        for Expl(id, _, alts) in expls {
+            let value = self.eval_alts(alts, env);
+            env.insert(id.clone(), value);
         }
 
-        Pat::PWildcard => true,
+        for impls in implss {
+            for Impl(id, _) in impls {
+                env.insert(id.clone(), Value::boxed(Value::Uninitialized));
+            }
 
-        Pat::PAs(name, pat) => {
-            if match_pat(pat, val, env) {
+            for Impl(id, alts) in impls {
+                let value = self.eval_alts(alts, env);
+                env[id].update(value)
+            }
+        }
+    }
+
+    pub fn eval_alts(&self, alts: &Rc<Vec<Alt>>, env: &Env) -> Value {
+        if alts[0].0.is_empty() {
+            return self.eval_expr(&alts[0].1, env);
+        }
+
+        Value::Closure(Closure {
+            alts: alts.clone(),
+            env: env.clone(),
+            ctx: self.clone(),
+            gathered_args: vec![],
+        })
+    }
+
+    pub fn eval_expr(&self, expr: &Expr, env: &Env) -> Value {
+        match expr {
+            Expr::Var(x) => env
+                .get(x)
+                .unwrap_or_else(|| panic!("unbound {x}"))
+                .clone()
+                .resolve(),
+            Expr::Lit(l) => self.eval_lit(l),
+            Expr::Const(_) => unimplemented!(),
+            Expr::App(rator, rand) => {
+                let rator_ = self.eval_expr(rator, env);
+                let rand_ = self.eval_expr(rand, env);
+                rator_.apply(vec![rand_])
+            }
+            Expr::Let(bg, body) => {
+                let mut local_env = env.clone();
+                self.exec_bindgroup(bg, &mut local_env);
+                self.eval_expr(body, &local_env)
+            }
+        }
+    }
+
+    fn eval_lit(&self, lit: &Literal) -> Value {
+        match lit {
+            Literal::Int(x) => Value::I64(*x),
+            Literal::Char(ch) => Value::Char(*ch),
+            Literal::Rat(x) => Value::F64(*x),
+            Literal::Str(s) => Value::String(s.clone()),
+        }
+    }
+
+    fn match_pat(&self, pat: &Pat, val: &Value, env: &mut Env) -> bool {
+        match pat {
+            Pat::PVar(name) => {
                 env.insert(name.clone(), val.clone());
                 true
-            } else {
-                false
-            }
-        }
-
-        Pat::PLit(lit) => match_lit(lit, val),
-
-        Pat::PNpk(name, k) => {
-            if let Value::Int(x) = val {
-                env.insert(name.clone(), Value::Int(*x - k));
-                true
-            } else {
-                false
-            }
-        }
-
-        Pat::PCon(Assump { i, .. }, pats) => {
-            let (tag, fields) = val.as_constructor();
-            if &*tag != i {
-                return false;
             }
 
-            for (pat, field) in pats.iter().zip(fields.iter()) {
-                if !match_pat(pat, field, env) {
-                    return false;
+            Pat::PWildcard => true,
+
+            Pat::PAs(name, pat) => {
+                if self.match_pat(pat, val, env) {
+                    env.insert(name.clone(), val.clone());
+                    true
+                } else {
+                    false
                 }
             }
 
-            true
+            Pat::PLit(lit) => self.match_lit(lit, val),
+
+            Pat::PNpk(name, k) => {
+                if let Value::I64(x) = val {
+                    env.insert(name.clone(), Value::I64(*x - k));
+                    true
+                } else {
+                    false
+                }
+            }
+
+            Pat::PCon(Assump { i, .. }, pats) => {
+                let (tag, fields) = val.as_constructor();
+                if &*tag != i {
+                    return false;
+                }
+
+                for (pat, field) in pats.iter().zip(fields.iter()) {
+                    if !self.match_pat(pat, field, env) {
+                        return false;
+                    }
+                }
+
+                true
+            }
+        }
+    }
+
+    fn match_lit(&self, lit: &Literal, val: &Value) -> bool {
+        match lit {
+            Literal::Int(x) => val.as_int() == *x,
+            Literal::Char(ch) => val.as_char() == *ch,
+            Literal::Rat(x) => val.as_float() == *x,
+            Literal::Str(s) => val.as_string() == *s,
         }
     }
 }
 
-fn match_lit(lit: &Literal, val: &Value) -> bool {
-    match lit {
-        Literal::Int(x) => val.as_int() == *x,
-        Literal::Char(ch) => val.as_char() == *ch,
-        Literal::Rat(x) => val.as_float() == *x,
-        Literal::Str(s) => val.as_string() == *s,
+fn scheme_matches(Scheme::Forall(_, Qual(_, ty)): &Scheme, args: &[Value]) -> bool {
+    let param_tys = ty.fn_arg_types();
+    if param_tys.len() != args.len() {
+        return false;
     }
+    for (t, v) in param_tys.into_iter().zip(args.iter()) {
+        match t {
+            Type::TVar(Tyvar(name, _)) => {
+                if !v.is_a(name) {
+                    return false;
+                }
+            }
+            Type::TCon(Tycon(name, _)) => {
+                if !v.is_a(name) {
+                    return false;
+                }
+            }
+            Type::TApp(_) => todo!(),
+            Type::TGen(_) => {}
+            Type::Unknown => unreachable!(),
+        }
+    }
+    true
 }
 
 /// this is currently super expensive to clone... todo: optimize
@@ -248,6 +342,7 @@ fn match_lit(lit: &Literal, val: &Value) -> bool {
 pub struct Closure {
     pub alts: Rc<Vec<Alt>>,
     pub env: Env,
+    pub ctx: Context,
     pub gathered_args: Vec<Value>,
 }
 
@@ -269,13 +364,13 @@ impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Uninitialized => write!(f, "<uninitialized>"),
-            Value::Boxed(bx) => write!(f, "{:?}", bx.borrow()),
-            Value::Int(x) => write!(f, "{}", x),
+            Value::Boxed(bx) => write!(f, "@{:?}", bx.borrow()),
+            Value::I64(x) => write!(f, "{}", x),
             Value::Char(ch) => write!(f, "{}", ch),
-            Value::Float(x) => write!(f, "{}", x),
+            Value::F64(x) => write!(f, "{}", x),
             Value::String(s) => write!(f, "{:?}", s),
             Value::Closure(c) => write!(f, "{:?}", c),
-            Value::Constructor(tag, fields) => {
+            Value::Constructor(_, tag, fields) => {
                 write!(f, "{}", tag)?;
                 if !fields.is_empty() {
                     write!(
@@ -290,6 +385,14 @@ impl std::fmt::Display for Value {
                 }
                 Ok(())
             }
+            Value::Method(_, args) => write!(
+                f,
+                "<method [{}]>",
+                args.iter()
+                    .map(|v| format!("{}", v))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         }
     }
 }

@@ -46,7 +46,7 @@ pub fn eq_intersect<T: PartialEq>(a: impl IntoIterator<Item = T>, b: Vec<T>) -> 
     a.into_iter().filter(|x| b.contains(x)).collect()
 }
 
-#[derive(PartialEq)]
+#[derive(Eq, Hash, PartialEq)]
 pub enum List<T> {
     Nil,
     Elem(Rc<(T, Self)>),
