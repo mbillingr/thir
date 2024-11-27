@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::str::FromStr;
 use crate::kinds;
 use crate::ast;
@@ -7,7 +8,7 @@ grammar;
 Int: i64 = <s:r"[0-9]+"> => i64::from_str(s).unwrap();
 Flt: f64 = <s:r"[0-9]+\.[0-9]+"> => f64::from_str(s).unwrap();
 Ident: crate::Id = <s:r"[a-zA-Z_&=!#><?^*/+\-][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.to_string();
-String: String = <s:r#""[^"]*""#> => s[1..s.len()-1].to_string();
+String: Rc<str> = <s:r#""[^"]*""#> => s[1..s.len()-1].to_string().into();
 Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
 
 pub Repl: ast::ReplCmd = {
@@ -15,6 +16,7 @@ pub Repl: ast::ReplCmd = {
     ":x" <Expr> => ast::ReplCmd::EvalExpr(<>),
     ":t" => ast::ReplCmd::ShowTypeEnv,
     ":a" => ast::ReplCmd::ShowAssumptions,
+    ":e" => ast::ReplCmd::ShowValueEnv,
 }
 
 pub Toplevel: ast::TopLevel = {

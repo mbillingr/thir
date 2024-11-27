@@ -7,6 +7,7 @@ mod ast;
 mod ast_to_typeck;
 mod classes;
 mod instantiate;
+mod interpreter;
 mod kinds;
 mod lists;
 mod parser_utils;
@@ -36,18 +37,24 @@ use crate::type_inference::TI;
 use crate::types::{Tycon, Type};
 use lalrpop_util::lalrpop_mod;
 use std::collections::HashMap;
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 
 type Result<T> = std::result::Result<T, String>;
 
 fn main() {
     let mut ctx = GlobalContext::new();
 
+    print!("> ");
+    std::io::stdout().flush().unwrap();
+
     for line in std::io::stdin().lock().lines() {
         match rep(&mut ctx, line.unwrap()) {
             Ok(res) => print!("{}", res.to_string()),
             Err(err) => println!("Error: {}", err),
         }
+
+        print!("> ");
+        std::io::stdout().flush().unwrap();
     }
 }
 
@@ -75,6 +82,8 @@ pub struct GlobalContext {
 
     /// identifiers whose type has been explicitly declared but not yet defined
     free_decls: HashMap<Id, ast::Decl>,
+
+    value_env: interpreter::Env,
 }
 
 impl GlobalContext {
@@ -109,6 +118,8 @@ impl GlobalContext {
             },
         ];
 
+        let value_env = HashMap::new();
+
         let constructors = vec![];
 
         let free_decls = HashMap::new();
@@ -120,6 +131,7 @@ impl GlobalContext {
             assumptions,
             constructors,
             free_decls,
+            value_env,
         }
     }
 
@@ -127,6 +139,7 @@ impl GlobalContext {
         match cmd {
             ast::ReplCmd::ShowTypeEnv => Ok(Box::new(format!("{:#?}\n", self.type_env))),
             ast::ReplCmd::ShowAssumptions => Ok(Box::new(format!("{:#?}\n", self.assumptions))),
+            ast::ReplCmd::ShowValueEnv => Ok(Box::new(format!("{:#?}\n", self.value_env))),
             ast::ReplCmd::TopLevel(top) => self
                 .exec_toplevel(top)
                 .map(|_| -> Box<dyn ToString> { Box::new("") }),
@@ -249,6 +262,9 @@ impl GlobalContext {
         let prog = self.build_program(vec![bg]);
         let r = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
         self.assumptions.extend(r);
+
+        interpreter::exec_program(&prog, &mut self.value_env);
+
         Ok(())
     }
 
@@ -263,7 +279,9 @@ impl GlobalContext {
 
         let t_ = s.apply(&t);
 
-        Ok(Box::new(format!("{:?}, where {:?}", t_, rs)))
+        let value = interpreter::eval_expr(&expr, &self.value_env);
+
+        Ok(Box::new(format!("{:?}, where {:?}\n{:?}\n", t_, rs, value)))
     }
 }
 

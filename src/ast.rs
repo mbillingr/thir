@@ -6,6 +6,7 @@ use crate::Id;
 pub enum ReplCmd {
     ShowTypeEnv,
     ShowAssumptions,
+    ShowValueEnv,
     EvalExpr(Expr),
     TopLevel(TopLevel),
 }

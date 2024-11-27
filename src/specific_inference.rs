@@ -18,7 +18,7 @@ pub enum Literal {
     Int(i64),
     Char(char),
     Rat(f64),
-    Str(String),
+    Str(Rc<str>),
 }
 
 fn ti_lit(_ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
@@ -223,7 +223,7 @@ fn split(
 
 /// Explicitly typed binding
 #[derive(Debug)]
-pub struct Expl(pub Id, pub Scheme, pub Vec<Alt>);
+pub struct Expl(pub Id, pub Scheme, pub Rc<Vec<Alt>>);
 
 fn ti_expl(
     ti: &mut TI,
@@ -259,7 +259,7 @@ fn ti_expl(
 
 /// Implicitly typed binding
 #[derive(Debug)]
-pub struct Impl(pub Id, pub Vec<Alt>);
+pub struct Impl(pub Id, pub Rc<Vec<Alt>>);
 
 fn restricted(bs: &[Impl]) -> bool {
     fn simple(Impl(_, alts): &Impl) -> bool {

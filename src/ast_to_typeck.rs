@@ -71,8 +71,8 @@ impl GlobalContext {
         si::Expl(id, sc, alts)
     }
 
-    pub fn build_alts(&mut self, alts: Vec<ast::Alt>) -> Vec<si::Alt> {
-        alts.into_iter().map(|alt| self.build_alt(alt)).collect()
+    pub fn build_alts(&mut self, alts: Vec<ast::Alt>) -> Rc<Vec<si::Alt>> {
+        Rc::new(alts.into_iter().map(|alt| self.build_alt(alt)).collect())
     }
 
     pub fn build_alt(&mut self, ast::Alt(pats, expr): ast::Alt) -> si::Alt {
