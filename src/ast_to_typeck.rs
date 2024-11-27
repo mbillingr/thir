@@ -11,6 +11,13 @@ use std::rc::Rc;
 pub type TEnv = HashMap<Id, types::Type>;
 
 impl GlobalContext {
+    pub fn with_tyenv<T>(&mut self, temporary_env: TEnv, f: impl FnOnce(&mut Self) -> T) -> T {
+        let backup = std::mem::replace(&mut self.type_env, temporary_env);
+        let result = f(self);
+        self.type_env = backup;
+        result
+    }
+
     pub fn build_program(&mut self, bgs: Vec<ast::BindGroup>) -> si::Program {
         si::Program(bgs.into_iter().map(|bg| self.build_bindgroup(bg)).collect())
     }
@@ -127,11 +134,7 @@ impl GlobalContext {
         let mut tyenv = self.type_env.clone();
         let (kinds, preds) = self.build_typeargs(sc.genvars, &mut tyenv);
 
-        let backup = std::mem::replace(&mut self.type_env, tyenv);
-
-        let ty = self.build_type(sc.ty);
-
-        self.type_env = backup;
+        let ty = self.with_tyenv(tyenv, |ctx| ctx.build_type(sc.ty));
 
         let qual_ty = qualified::Qual(preds, ty);
         scheme::Scheme::Forall(kinds, qual_ty)

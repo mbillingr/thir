@@ -185,10 +185,11 @@ impl GlobalContext {
                 .ok_or_else(|| format!("unexpected method: {name}"))?;
 
             scenv.insert(var, ty.clone()); // actually, var is the same for every method
+            let sc_ = self.with_tyenv(scenv.clone(), |ctx| ctx.build_scheme(sc));
 
             let alts = self.build_alts(mi.1);
 
-            expls.push(Expl(name, self.build_scheme(sc), alts));
+            expls.push(Expl(name, sc_, alts));
         }
 
         let _ = ti_program(
