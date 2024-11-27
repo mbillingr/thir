@@ -63,9 +63,13 @@ SchemeArg: (crate::Id, kinds::Kind, Vec<crate::Id>) = {
 }
 
 Kind: kinds::Kind = {
+    <SimpleKind>,
+    <SimpleKind> "->" <Kind> => kinds::Kind::kfun(<>),
+}
+
+SimpleKind: kinds::Kind = {
     "*" => kinds::Kind::Star,
-    "*" "->" <Kind> => kinds::Kind::kfun(kinds::Kind::Star, <>),
-    "(" <Kind> ")" "->" <Kind> => kinds::Kind::kfun(<>),
+    "(" <Kind> ")",
 }
 
 Type: ast::Type = {
