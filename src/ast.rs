@@ -8,6 +8,7 @@ pub enum TopLevel {
     ImplClass(ImplClass),
     DataType(DataType),
     BindGroup(BindGroup),
+    Expr(Expr),
 }
 
 #[derive(Debug)]

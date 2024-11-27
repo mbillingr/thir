@@ -130,7 +130,7 @@ pub enum Expr {
     Let(BindGroup, Rc<Expr>),
 }
 
-fn ti_expr(
+pub fn ti_expr(
     ti: &mut TI,
     ce: &ClassEnv,
     ass: &[Assump],

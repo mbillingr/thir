@@ -15,6 +15,7 @@ pub Toplevel: ast::TopLevel = {
     <ImplClass> => ast::TopLevel::ImplClass(<>),
     <DataType> => ast::TopLevel::DataType(<>),
     <BindGroup> => ast::TopLevel::BindGroup(<>),
+    ":x" <Expr> => ast::TopLevel::Expr(<>),
 }
 
 DefClass: ast::DefClass = {

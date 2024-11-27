@@ -23,15 +23,16 @@ mod unification;
 lalrpop_mod!(grammar);
 
 use crate::assumptions::Assump;
-use crate::ast::{DataType, DefClass, ImplClass};
+use crate::ast::{DataType, DefClass, Expr, ImplClass};
 use crate::ast_to_typeck::TEnv;
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
 use crate::predicates::Pred;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
-use crate::specific_inference::{ti_program, BindGroup, Expl, Program};
+use crate::specific_inference::{ti_expr, ti_program, BindGroup, Expl, Program};
 use crate::specifics::{add_core_classes, add_num_classes};
+use crate::type_inference::TI;
 use crate::types::{Tycon, Type};
 use lalrpop_util::lalrpop_mod;
 use std::collections::HashMap;
@@ -128,6 +129,7 @@ impl GlobalContext {
             ast::TopLevel::ImplClass(ic) => self.implement_class(ic),
             ast::TopLevel::DataType(dt) => self.define_datatype(dt),
             ast::TopLevel::BindGroup(bg) => self.define_globals(bg),
+            ast::TopLevel::Expr(expr) => self.eval_expr(expr),
         }
     }
 
@@ -242,6 +244,21 @@ impl GlobalContext {
         let r = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
         println!("{r:#?}");
         self.assumptions.extend(r);
+        Ok(())
+    }
+
+    fn eval_expr(&mut self, expr: Expr) -> Result<()> {
+        let expr = self.build_expr(expr);
+
+        let mut ti = TI::new();
+        let (ps, t) = ti_expr(&mut ti, &self.class_env, &self.assumptions, &expr)?;
+
+        let s = &ti.get_subst();
+        let rs = self.class_env.reduce(&s.apply(&ps))?;
+
+        let t_ = s.apply(&t);
+
+        println!("{:?}, where {:?}", t_, rs);
         Ok(())
     }
 }
