@@ -45,18 +45,18 @@ fn main() {
 
     for line in std::io::stdin().lock().lines() {
         match rep(&mut ctx, line.unwrap()) {
-            Ok(()) => println!("OK"),
+            Ok(res) => print!("{}", res.to_string()),
             Err(err) => println!("Error: {}", err),
         }
     }
 }
 
-fn rep(ctx: &mut GlobalContext, line: String) -> Result<()> {
-    let top = grammar::ToplevelParser::new()
+fn rep(ctx: &mut GlobalContext, line: String) -> Result<Box<dyn ToString>> {
+    let cmd = grammar::ReplParser::new()
         .parse(&line)
         .map_err(|e| e.to_string())?;
 
-    ctx.exec_toplevel(top)
+    ctx.handle_cmd(cmd)
 }
 
 pub struct GlobalContext {
@@ -123,13 +123,23 @@ impl GlobalContext {
         }
     }
 
+    fn handle_cmd(&mut self, cmd: ast::ReplCmd) -> Result<Box<dyn ToString>> {
+        match cmd {
+            ast::ReplCmd::ShowTypeEnv => Ok(Box::new(format!("{:#?}\n", self.type_env))),
+            ast::ReplCmd::ShowAssumptions => Ok(Box::new(format!("{:#?}\n", self.assumptions))),
+            ast::ReplCmd::TopLevel(top) => self
+                .exec_toplevel(top)
+                .map(|_| -> Box<dyn ToString> { Box::new("") }),
+            ast::ReplCmd::EvalExpr(expr) => self.eval_expr(expr),
+        }
+    }
+
     fn exec_toplevel(&mut self, top: ast::TopLevel) -> Result<()> {
         match top {
             ast::TopLevel::DefClass(dc) => self.define_class(dc),
             ast::TopLevel::ImplClass(ic) => self.implement_class(ic),
             ast::TopLevel::DataType(dt) => self.define_datatype(dt),
             ast::TopLevel::BindGroup(bg) => self.define_globals(bg),
-            ast::TopLevel::Expr(expr) => self.eval_expr(expr),
         }
     }
 
@@ -151,7 +161,6 @@ impl GlobalContext {
             let sc = self.build_scheme(sc);
             self.assumptions.push(Assump { i, sc });
         }
-        println!("{:#?}", self.assumptions);
         Ok(())
     }
 
@@ -182,12 +191,11 @@ impl GlobalContext {
             expls.push(Expl(name, self.build_scheme(sc), alts));
         }
 
-        let r = ti_program(
+        let _ = ti_program(
             &class_env,
             self.assumptions.clone(),
             &Program(vec![BindGroup(expls, vec![])]),
         )?;
-        println!("{r:#?}");
 
         if !required_methods.is_empty() {
             return Err(format!("missing method impls: {:?}", required_methods));
@@ -233,21 +241,17 @@ impl GlobalContext {
         }
 
         self.type_env = backup;
-
-        println!("{:#?}", self.assumptions);
-
         Ok(())
     }
 
     fn define_globals(&mut self, bg: ast::BindGroup) -> Result<()> {
         let prog = self.build_program(vec![bg]);
         let r = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
-        println!("{r:#?}");
         self.assumptions.extend(r);
         Ok(())
     }
 
-    fn eval_expr(&mut self, expr: Expr) -> Result<()> {
+    fn eval_expr(&mut self, expr: Expr) -> Result<Box<dyn ToString>> {
         let expr = self.build_expr(expr);
 
         let mut ti = TI::new();
@@ -258,8 +262,7 @@ impl GlobalContext {
 
         let t_ = s.apply(&t);
 
-        println!("{:?}, where {:?}", t_, rs);
-        Ok(())
+        Ok(Box::new(format!("{:?}, where {:?}", t_, rs)))
     }
 }
 

@@ -31,11 +31,15 @@ pub enum Type {
 impl Debug for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::TVar(tv) => write!(f, "{}", tv.0),
-            Type::TCon(tc) => write!(f, "{}", tc.0),
-            Type::TApp(rc) => write!(f, "({:?} {:?})", rc.0, rc.1),
-            Type::TGen(k) => write!(f, "'{k}"),
-            Type::Unknown => write!(f, "?"),
+            Type::TVar(tv) => write!(f, "{}", tv.0)?,
+            Type::TCon(tc) => write!(f, "{}", tc.0)?,
+            Type::TApp(rc) => write!(f, "({:?} {:?})", rc.0, rc.1)?,
+            Type::TGen(k) => write!(f, "'{k}")?,
+            Type::Unknown => write!(f, "?")?,
+        };
+        match self.kind() {
+            Ok(k) => write!(f, "  (kind: {:?})", k),
+            Err(_) => write!(f, "  (kind: ?)"),
         }
     }
 }
@@ -76,7 +80,7 @@ impl HasKind for Type {
                 Kind::Kfun(kf) => Ok(&kf.1),
                 _ => Err("Invalid Kind in TApp")?,
             },
-            Type::TGen(_) => panic!("Don't know what to do :(   (maybe ignore somehow?)"),
+            Type::TGen(_) => Err("unknown kind")?,
             Type::Unknown => unreachable!(),
         }
     }

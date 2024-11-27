@@ -3,12 +3,19 @@ pub use crate::specific_inference::Literal;
 use crate::Id;
 
 #[derive(Debug)]
+pub enum ReplCmd {
+    ShowTypeEnv,
+    ShowAssumptions,
+    EvalExpr(Expr),
+    TopLevel(TopLevel),
+}
+
+#[derive(Debug)]
 pub enum TopLevel {
     DefClass(DefClass),
     ImplClass(ImplClass),
     DataType(DataType),
     BindGroup(BindGroup),
-    Expr(Expr),
 }
 
 #[derive(Debug)]

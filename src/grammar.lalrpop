@@ -10,12 +10,18 @@ Ident: crate::Id = <s:r"[a-zA-Z_&=!#><?^*/+\-][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.
 String: String = <s:r#""[^"]*""#> => s[1..s.len()-1].to_string();
 Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
 
+pub Repl: ast::ReplCmd = {
+    <Toplevel> => ast::ReplCmd::TopLevel(<>),
+    ":x" <Expr> => ast::ReplCmd::EvalExpr(<>),
+    ":t" => ast::ReplCmd::ShowTypeEnv,
+    ":a" => ast::ReplCmd::ShowAssumptions,
+}
+
 pub Toplevel: ast::TopLevel = {
     <DefClass> => ast::TopLevel::DefClass(<>),
     <ImplClass> => ast::TopLevel::ImplClass(<>),
     <DataType> => ast::TopLevel::DataType(<>),
     <BindGroup> => ast::TopLevel::BindGroup(<>),
-    ":x" <Expr> => ast::TopLevel::Expr(<>),
 }
 
 DefClass: ast::DefClass = {
