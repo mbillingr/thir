@@ -16,13 +16,12 @@ impl GlobalContext {
     }
 
     pub fn build_bindgroup(&mut self, ast::BindGroup(bg): ast::BindGroup) -> si::BindGroup {
-        let mut decls = HashMap::new();
         let mut binds = vec![];
 
         for b in bg {
             match b {
                 ast::Bind::Declaration(decl) => {
-                    decls.insert(decl.0.clone(), decl);
+                    self.free_decls.insert(decl.0.clone(), decl);
                 }
                 ast::Bind::Implicit(_) => binds.push(b),
                 ast::Bind::Mutual(_) => binds.push(b),
@@ -35,7 +34,7 @@ impl GlobalContext {
         for b in binds {
             match b {
                 ast::Bind::Declaration(_) => unreachable!(),
-                ast::Bind::Implicit(impl_) => match decls.remove(&impl_.0) {
+                ast::Bind::Implicit(impl_) => match self.free_decls.remove(&impl_.0) {
                     None => impls.push(vec![self.build_impl(impl_)]),
                     Some(decl) => expls.push(self.build_expl(decl, impl_)),
                 },

@@ -72,6 +72,9 @@ pub struct GlobalContext {
     assumptions: Vec<Assump>,
     /// only data constructor bindings
     constructors: Vec<Assump>,
+
+    /// identifiers whose type has been explicitly declared but not yet defined
+    free_decls: HashMap<Id, ast::Decl>,
 }
 
 impl GlobalContext {
@@ -108,12 +111,15 @@ impl GlobalContext {
 
         let constructors = vec![];
 
+        let free_decls = HashMap::new();
+
         GlobalContext {
             class_env: ce,
             methods,
             type_env: tenv,
             assumptions,
             constructors,
+            free_decls,
         }
     }
 
