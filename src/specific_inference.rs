@@ -182,7 +182,6 @@ fn ti_alt(
     ass_.extend(ass.iter().cloned());
     let (qs, t) = ti_expr(ti, ce, &ass_, e)?;
     ps.extend(qs);
-    println!("{:?}", ts);
     let f = ts.into_iter().rfold(t, |acc, t_| Type::func(t_, acc));
     Ok((ps, f))
 }
@@ -384,8 +383,6 @@ pub fn ti_program(
 ) -> crate::Result<Vec<Assump>> {
     let mut ti = TI::new();
     let (ps, as_) = ti_seq(ti_bindgroup, &mut ti, ce, ass, bgs)?;
-    //println!("{:#?}", ps);
-    //println!("{:#?}", as_);
     let s = &ti.get_subst();
     let rs = ce.reduce(&s.apply(&ps))?;
     let s_ = default_subst(ce, vec![], &rs)?;

@@ -54,7 +54,6 @@ fn rep(ctx: &mut GlobalContext, line: String) -> Result<()> {
     let top = grammar::ToplevelParser::new()
         .parse(&line)
         .map_err(|e| e.to_string())?;
-    println!("AST: {:?}", top);
 
     ctx.exec_toplevel(top)
 }
