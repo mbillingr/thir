@@ -64,13 +64,16 @@ fn rep(ctx: &mut GlobalContext, line: String) -> Result<()> {
 struct GlobalContext {
     class_env: ClassEnv,
 
-    // could store these directly inside each class, but this is easier for now.
-    // also, i don't think i want `ast::` types inside the "thih" core.
+    /// could store these directly inside each class, but this is easier for now.
+    /// also, i don't think i want `ast::` types inside the "thih" core.
     methods: HashMap<Id, HashMap<Id, (Id, ast::Scheme)>>,
 
     type_env: TEnv,
 
+    /// all bindings
     assumptions: Vec<Assump>,
+    /// only data constructor bindings
+    constructors: Vec<Assump>,
 }
 
 impl GlobalContext {
@@ -105,11 +108,14 @@ impl GlobalContext {
             },
         ];
 
+        let constructors = vec![];
+
         GlobalContext {
             class_env: ce,
             methods,
             type_env: tenv,
             assumptions,
+            constructors,
         }
     }
 
@@ -166,7 +172,7 @@ impl GlobalContext {
 
             scenv.insert(var, ty.clone()); // actually, var is the same for every method
 
-            let alts = build_alts(mi.1, &self.type_env, &self.assumptions);
+            let alts = build_alts(mi.1, &self.type_env, &self.constructors);
 
             expls.push(Expl(name, build_scheme(sc, &scenv), alts));
         }
@@ -191,21 +197,12 @@ impl GlobalContext {
         let type_arity = dt.genvars.len();
         let kind = Kind::ty_constructor(type_arity);
         let dty = Type::TCon(Tycon(dt.typename.clone(), kind));
-        println!("Dt: {:?}", dty);
         self.type_env.insert(dt.typename.clone(), dty.clone());
-
-        println!("Ks: {:?}", dt.genvars);
 
         let mut method_tenv = self.type_env.clone();
         let (kinds, preds) = build_typeargs(dt.genvars, &mut method_tenv);
 
-        println!("ENV: {:?}", method_tenv);
-
         for (i, params) in dt.constructors {
-            println!("Ks: {:?}", kinds);
-            println!("Ps: {:?}", preds);
-            println!("As: {:?}", params);
-
             let args: Vec<_> = params
                 .into_iter()
                 .map(|p| build_type(p, &method_tenv))
@@ -223,10 +220,12 @@ impl GlobalContext {
                 ty = Type::func(a, ty);
             }
 
-            self.assumptions.push(Assump {
+            let assump = Assump {
                 i,
                 sc: Scheme::Forall(kinds.clone(), Qual(preds.clone(), ty)),
-            });
+            };
+            self.assumptions.push(assump.clone());
+            self.constructors.push(assump);
         }
 
         println!("{:#?}", self.assumptions);
@@ -235,7 +234,7 @@ impl GlobalContext {
     }
 
     fn define_globals(&mut self, bg: ast::BindGroup) -> Result<()> {
-        let prog = build_program(vec![bg], &self.type_env, &self.assumptions);
+        let prog = build_program(vec![bg], &self.type_env, &self.constructors);
         let r = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
         println!("{r:#?}");
         self.assumptions.extend(r);

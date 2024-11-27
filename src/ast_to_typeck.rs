@@ -8,10 +8,14 @@ use std::rc::Rc;
 
 pub type TEnv = HashMap<Id, types::Type>;
 
-pub fn build_program(bgs: Vec<ast::BindGroup>, tyenv: &TEnv, ass: &[Assump]) -> si::Program {
+pub fn build_program(
+    bgs: Vec<ast::BindGroup>,
+    tyenv: &TEnv,
+    constructors: &[Assump],
+) -> si::Program {
     si::Program(
         bgs.into_iter()
-            .map(|bg| build_bindgroup(bg, tyenv, ass))
+            .map(|bg| build_bindgroup(bg, tyenv, constructors))
             .collect(),
     )
 }
@@ -19,18 +23,18 @@ pub fn build_program(bgs: Vec<ast::BindGroup>, tyenv: &TEnv, ass: &[Assump]) -> 
 pub fn build_bindgroup(
     ast::BindGroup(bg): ast::BindGroup,
     tyenv: &TEnv,
-    ass: &[Assump],
+    constructors: &[Assump],
 ) -> si::BindGroup {
     let mut expls = vec![];
     let mut impls = vec![];
 
     for b in bg {
         match b {
-            ast::Bind::Explicit(expl) => expls.push(build_expl(expl, tyenv, ass)),
-            ast::Bind::Implicit(impl_) => impls.push(vec![build_impl(impl_, tyenv, ass)]),
+            ast::Bind::Explicit(expl) => expls.push(build_expl(expl, tyenv, constructors)),
+            ast::Bind::Implicit(impl_) => impls.push(vec![build_impl(impl_, tyenv, constructors)]),
             ast::Bind::Mutual(mut_) => impls.push(
                 mut_.into_iter()
-                    .map(|impl_| build_impl(impl_, tyenv, ass))
+                    .map(|impl_| build_impl(impl_, tyenv, constructors))
                     .collect(),
             ),
         }
@@ -39,60 +43,70 @@ pub fn build_bindgroup(
     si::BindGroup(expls, impls)
 }
 
-pub fn build_impl(ast::Impl(id, alts): ast::Impl, tyenv: &TEnv, ass: &[Assump]) -> si::Impl {
-    let alts = build_alts(alts, tyenv, ass);
+pub fn build_impl(
+    ast::Impl(id, alts): ast::Impl,
+    tyenv: &TEnv,
+    constructors: &[Assump],
+) -> si::Impl {
+    let alts = build_alts(alts, tyenv, constructors);
     si::Impl(id, alts)
 }
 
-pub fn build_expl(ast::Expl(id, sc, alts): ast::Expl, tyenv: &TEnv, ass: &[Assump]) -> si::Expl {
+pub fn build_expl(
+    ast::Expl(id, sc, alts): ast::Expl,
+    tyenv: &TEnv,
+    constructors: &[Assump],
+) -> si::Expl {
     let sc = build_scheme(sc, tyenv);
-    let alts = build_alts(alts, tyenv, ass);
+    let alts = build_alts(alts, tyenv, constructors);
     si::Expl(id, sc, alts)
 }
 
-pub fn build_alts(alts: Vec<ast::Alt>, tyenv: &TEnv, ass: &[Assump]) -> Vec<si::Alt> {
+pub fn build_alts(alts: Vec<ast::Alt>, tyenv: &TEnv, constructors: &[Assump]) -> Vec<si::Alt> {
     alts.into_iter()
-        .map(|alt| build_alt(alt, tyenv, ass))
+        .map(|alt| build_alt(alt, tyenv, constructors))
         .collect()
 }
 
-pub fn build_alt(ast::Alt(pats, expr): ast::Alt, tyenv: &TEnv, ass: &[Assump]) -> si::Alt {
+pub fn build_alt(ast::Alt(pats, expr): ast::Alt, tyenv: &TEnv, constructors: &[Assump]) -> si::Alt {
     let pats = pats
         .into_iter()
-        .map(|pat| build_pat(pat, tyenv, ass))
+        .map(|pat| build_pat(pat, tyenv, constructors))
         .collect();
-    let expr = build_expr(expr, tyenv, ass);
+    let expr = build_expr(expr, tyenv, constructors);
     si::Alt(pats, expr)
 }
 
-pub fn build_pat(pat: ast::Pat, tyenv: &TEnv, ass: &[Assump]) -> si::Pat {
+pub fn build_pat(pat: ast::Pat, tyenv: &TEnv, constructors: &[Assump]) -> si::Pat {
     match pat {
         ast::Pat::PVar(id) => si::Pat::PVar(id),
         ast::Pat::PWildcard => si::Pat::PWildcard,
-        ast::Pat::PAs(id, pat) => si::Pat::PAs(id, Rc::new(build_pat(*pat, tyenv, ass))),
+        ast::Pat::PAs(id, pat) => si::Pat::PAs(id, Rc::new(build_pat(*pat, tyenv, constructors))),
         ast::Pat::PLit(lit) => si::Pat::PLit(lit),
         ast::Pat::PNpk(id, n) => si::Pat::PNpk(id, n),
         ast::Pat::PCon(id, pats) => {
-            // todo: how do we know this is a constructor and not a function?
-            let constructor = find(&id, ass).unwrap().clone();
-            let ps = pats.into_iter().map(|p| build_pat(p, tyenv, ass)).collect();
+            let constructor = find(&id, constructors).unwrap().clone();
+            let ps = pats
+                .into_iter()
+                .map(|p| build_pat(p, tyenv, constructors))
+                .collect();
             si::Pat::PCon(constructor, ps)
         }
     }
 }
 
-pub fn build_expr(expr: ast::Expr, tyenv: &TEnv, ass: &[Assump]) -> si::Expr {
+pub fn build_expr(expr: ast::Expr, tyenv: &TEnv, constructors: &[Assump]) -> si::Expr {
     match expr {
         ast::Expr::Var(id) => si::Expr::Var(id),
         ast::Expr::Lit(lit) => si::Expr::Lit(lit),
         ast::Expr::App(e1, e2) => {
-            let e1 = Rc::new(build_expr(*e1, tyenv, ass));
-            let e2 = Rc::new(build_expr(*e2, tyenv, ass));
+            let e1 = Rc::new(build_expr(*e1, tyenv, constructors));
+            let e2 = Rc::new(build_expr(*e2, tyenv, constructors));
             si::Expr::App(e1, e2)
         }
         ast::Expr::Let(bg, e) => {
-            let bg = build_bindgroup(bg, tyenv, ass);
-            let e = Rc::new(build_expr(*e, tyenv, ass));
+            let bg = build_bindgroup(bg, tyenv, constructors);
+            let e = Rc::new(build_expr(*e, tyenv, constructors));
             si::Expr::Let(bg, e)
         }
     }
