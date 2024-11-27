@@ -23,13 +23,16 @@ mod unification;
 lalrpop_mod!(grammar);
 
 use crate::assumptions::Assump;
-use crate::ast_to_typeck::{build_alts, build_program, build_scheme, build_type, build_typeargs};
+use crate::ast::{DataType, DefClass, ImplClass};
+use crate::ast_to_typeck::{
+    build_alts, build_program, build_scheme, build_type, build_typeargs, TEnv,
+};
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
 use crate::predicates::Pred;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
-use crate::specific_inference::{ti_program, Alt, BindGroup, Expl, Expr, Literal, Program};
+use crate::specific_inference::{ti_program, BindGroup, Expl, Program};
 use crate::specifics::{add_core_classes, add_num_classes};
 use crate::types::{Tycon, Type};
 use lalrpop_util::lalrpop_mod;
@@ -39,255 +42,181 @@ use std::io::BufRead;
 type Result<T> = std::result::Result<T, String>;
 
 fn main() {
-    let ce = ClassEnv::default();
-    let ce = add_core_classes().apply(&ce).unwrap();
-    let ce = add_num_classes().apply(&ce).unwrap();
-    let mut ce = ce;
-
-    // could store these directly inside each class, but this is easier for now.
-    let mut methods = HashMap::new();
-
-    let mut tenv = HashMap::new();
-    tenv.insert("->".into(), Type::t_arrow());
-    tenv.insert("Int".into(), Type::t_int());
-    tenv.insert("Double".into(), Type::t_double());
-    tenv.insert("String".into(), Type::t_string());
-    tenv.insert("[]".into(), Type::t_list());
-
-    let mut global_assumptions = vec![
-        Assump {
-            i: "show".into(),
-            sc: Scheme::Forall(
-                list![Kind::Star],
-                Qual(
-                    vec![Pred::IsIn("Show".into(), Type::TGen(0))],
-                    Type::func(Type::TGen(0), Type::t_string()),
-                ),
-            ),
-        },
-        Assump {
-            i: "abc".into(),
-            sc: Scheme::Forall(list![], Qual(vec![], Type::list(Type::t_int()))),
-        },
-    ];
+    let mut ctx = GlobalContext::new();
 
     for line in std::io::stdin().lock().lines() {
         let line = line.unwrap();
         let top = grammar::ToplevelParser::new().parse(&line);
         println!("{:?}", top);
 
-        match top.unwrap() {
-            ast::TopLevel::DefClass(dc) => {
-                let et = EnvTransformer::add_class(dc.name.clone(), dc.super_classes);
-                ce = et.apply(&ce).unwrap();
+        let top = top.unwrap();
+        ctx.exec_toplevel(top);
+    }
+}
 
-                let mut local_tenv = tenv.clone();
-                local_tenv.insert(dc.varname.clone(), Type::TGen(0));
-                for (i, mut sc) in dc.methods {
-                    methods
-                        .entry(dc.name.clone())
-                        .or_insert(HashMap::new())
-                        .insert(i.clone(), (dc.varname.clone(), sc.clone()));
+struct GlobalContext {
+    class_env: ClassEnv,
 
-                    // insert the "self" type as the first generic
-                    sc.genvars
-                        .insert(0, (dc.varname.clone(), Kind::Star, vec![dc.name.clone()]));
-                    let sc = build_scheme(sc, &local_tenv);
-                    global_assumptions.push(Assump { i, sc });
-                }
-                println!("{:#?}", global_assumptions);
-            }
+    // could store these directly inside each class, but this is easier for now.
+    // also, i don't think i want `ast::` types inside the "thih" core.
+    methods: HashMap<Id, HashMap<Id, (Id, ast::Scheme)>>,
 
-            ast::TopLevel::ImplClass(ic) => {
-                let mut required_methods = methods.get(&ic.cls).cloned().unwrap_or(HashMap::new());
+    type_env: TEnv,
 
-                let ty = tenv.get(&ic.ty).expect("unknown type").clone();
-                let et = EnvTransformer::add_inst(vec![], Pred::IsIn(ic.cls, ty.clone()));
-                ce = et.apply(&ce).unwrap();
+    assumptions: Vec<Assump>,
+}
 
-                let mut scenv = tenv.clone();
+impl GlobalContext {
+    pub fn new() -> GlobalContext {
+        let ce = ClassEnv::default();
+        let ce = add_core_classes().apply(&ce).unwrap();
+        let ce = add_num_classes().apply(&ce).unwrap();
 
-                let mut expls = vec![];
-                for mi in ic.methods {
-                    let name = mi.0;
-                    let (var, sc) = required_methods.remove(&name).expect("unexpected method");
+        let methods = Default::default();
 
-                    scenv.insert(var, ty.clone()); // actually, var is the same for every method
+        let mut tenv = HashMap::new();
+        tenv.insert("->".into(), Type::t_arrow());
+        tenv.insert("Int".into(), Type::t_int());
+        tenv.insert("Double".into(), Type::t_double());
+        tenv.insert("String".into(), Type::t_string());
+        tenv.insert("[]".into(), Type::t_list());
 
-                    let alts = build_alts(mi.1, &tenv);
+        let assumptions = vec![
+            Assump {
+                i: "show".into(),
+                sc: Scheme::Forall(
+                    list![Kind::Star],
+                    Qual(
+                        vec![Pred::IsIn("Show".into(), Type::TGen(0))],
+                        Type::func(Type::TGen(0), Type::t_string()),
+                    ),
+                ),
+            },
+            Assump {
+                i: "abc".into(),
+                sc: Scheme::Forall(list![], Qual(vec![], Type::list(Type::t_int()))),
+            },
+        ];
 
-                    expls.push(Expl(name, build_scheme(sc, &scenv), alts));
-                }
-
-                let r = ti_program(
-                    &ce,
-                    global_assumptions.clone(),
-                    &Program(vec![BindGroup(expls, vec![])]),
-                );
-                println!("{r:#?}");
-
-                if !required_methods.is_empty() {
-                    panic!("missing method impls: {:?}", required_methods);
-                }
-            }
-
-            ast::TopLevel::DataType(dt) => {
-                let type_arity = dt.genvars.len();
-                let kind = Kind::ty_constructor(type_arity);
-                let dty = Type::TCon(Tycon(dt.typename.clone(), kind));
-                tenv.insert(dt.typename.clone(), dty.clone());
-
-                let mut method_tenv = tenv.clone();
-                let (kinds, preds) = build_typeargs(dt.genvars, &mut method_tenv);
-
-                for (i, params) in dt.constructors {
-                    let args: Vec<_> = params
-                        .into_iter()
-                        .map(|p| build_type(p, &method_tenv))
-                        .collect();
-
-                    // apply the type constructor
-                    let mut tc_args = vec![Type::Unknown; type_arity];
-                    for a in args.iter() {
-                        match a {
-                            Type::TGen(k) => tc_args[*k] = a.clone(),
-                            _ => todo!("{:?}", a),
-                        }
-                    }
-                    let mut ty = dty.clone();
-                    for a in tc_args {
-                        ty = Type::tapp(ty, a)
-                    }
-
-                    // constructor arguments
-                    for a in args.into_iter().rev() {
-                        ty = Type::func(a, ty);
-                    }
-
-                    global_assumptions.push(Assump {
-                        i,
-                        sc: Scheme::Forall(kinds.clone(), Qual(preds.clone(), ty)),
-                    });
-                }
-            }
-
-            ast::TopLevel::BindGroup(bg) => {
-                let prog = build_program(vec![bg], &tenv);
-                let r = ti_program(&ce, global_assumptions.clone(), &prog);
-                println!("{r:#?}");
-                if let Ok(ass) = r {
-                    global_assumptions.extend(ass)
-                }
-            }
+        GlobalContext {
+            class_env: ce,
+            methods,
+            type_env: tenv,
+            assumptions,
         }
     }
 
-    let prog = Program(vec![BindGroup(
-        vec![
-            /*Expl(
-                "foo".into(),
-                Scheme::Forall(List::Nil, Qual(vec![], Type::t_int())),
-                vec![Alt(vec![], Expr::Var("bar".into()))],
-            ),*/
-            /*Expl(
-                "ident".into(),
-                Scheme::Forall(
-                    list![Kind::Star],
-                    Qual(vec![], Type::func(Type::TGen(0), Type::TGen(0))),
-                ),
-                vec![Alt(vec![Pat::PVar("x".into())], Expr::Var("x".into()))],
-            ),*/
-            /*Expl(
-                "ignore-arg".into(),
-                Scheme::Forall(
-                    list![Kind::Star],
-                    Qual(vec![], Type::func(Type::TGen(0), Type::t_int())),
-                ),
-                vec![Alt(vec![Pat::PWildcard], Expr::Lit(Literal::Int(0)))],
-            ),
-            Expl(
-                "fst".into(),
-                Scheme::Forall(
-                    list![Kind::Star, Kind::Star],
-                    Qual(
-                        vec![],
-                        Type::func(Type::TGen(0), Type::func(Type::TGen(1), Type::TGen(0))),
-                    ),
-                ),
-                vec![Alt(
-                    vec![Pat::PVar("x".into()), Pat::PWildcard],
-                    Expr::Var("x".into()),
-                )],
-            ),
-            Expl(
-                "snd".into(),
-                Scheme::Forall(
-                    list![Kind::Star, Kind::Star],
-                    Qual(
-                        vec![],
-                        Type::func(Type::TGen(0), Type::func(Type::TGen(1), Type::TGen(1))),
-                    ),
-                ),
-                vec![Alt(
-                    vec![Pat::PWildcard, Pat::PVar("x".into())],
-                    Expr::Var("x".into()),
-                )],
-            ),*/
-            /*Expl(
-                "a-const".into(),
-                Scheme::Forall(list![], Qual(vec![], Type::t_int())),
-                vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
-            ),*/
-            Expl(
-                "show-int".into(),
-                Scheme::Forall(
-                    list![],
-                    Qual(vec![], Type::func(Type::t_int(), Type::t_string())),
-                ),
-                vec![Alt(vec![], Expr::Var("show".into()))],
-            ),
-            Expl(
-                "str42".into(),
-                Scheme::Forall(list![], Qual(vec![], Type::t_string())),
-                vec![Alt(
-                    vec![],
-                    Expr::App(
-                        Expr::Var("show".into()).into(),
-                        Expr::Lit(Literal::Int(42)).into(),
-                    ),
-                )],
-            ),
-        ],
-        vec![/*vec![
-            /*Impl(
-                "a-const".into(),
-                vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
-            ),*/
-            /*Impl(
-                "bar".into(),
-                vec![Alt(
-                    vec![],
-                    Expr::App(
-                        Expr::Var("ident".into()).into(),
-                        Expr::Lit(Literal::Int(42)).into(),
-                    ),
-                )],
-            ),
-            Impl(
-                "baz".into(),
-                vec![Alt(
-                    vec![],
-                    Expr::App(
-                        Expr::Var("ident".into()).into(),
-                        Expr::Var("ident".into()).into(),
-                    ),
-                )],
-            ),*/
-        ]*/],
-    )]);
+    fn exec_toplevel(&mut self, top: ast::TopLevel) {
+        match top {
+            ast::TopLevel::DefClass(dc) => self.define_class(dc),
+            ast::TopLevel::ImplClass(ic) => self.implement_class(ic),
+            ast::TopLevel::DataType(dt) => self.define_datatype(dt),
+            ast::TopLevel::BindGroup(bg) => self.define_globals(bg),
+        }
+    }
 
-    let r = ti_program(&ce, global_assumptions, &prog);
-    println!("{r:#?}")
+    fn define_class(&mut self, dc: DefClass) {
+        let et = EnvTransformer::add_class(dc.name.clone(), dc.super_classes);
+        self.class_env = et.apply(&self.class_env).unwrap();
+
+        let mut local_tenv = self.type_env.clone();
+        local_tenv.insert(dc.varname.clone(), Type::TGen(0));
+        for (i, mut sc) in dc.methods {
+            self.methods
+                .entry(dc.name.clone())
+                .or_insert(HashMap::new())
+                .insert(i.clone(), (dc.varname.clone(), sc.clone()));
+
+            // insert the "self" type as the first generic
+            sc.genvars
+                .insert(0, (dc.varname.clone(), Kind::Star, vec![dc.name.clone()]));
+            let sc = build_scheme(sc, &local_tenv);
+            self.assumptions.push(Assump { i, sc });
+        }
+        println!("{:#?}", self.assumptions);
+    }
+
+    fn implement_class(&mut self, ic: ImplClass) {
+        let mut required_methods = self.methods.get(&ic.cls).cloned().unwrap_or(HashMap::new());
+
+        let ty = self.type_env.get(&ic.ty).expect("unknown type").clone();
+        let et = EnvTransformer::add_inst(vec![], Pred::IsIn(ic.cls, ty.clone()));
+        self.class_env = et.apply(&self.class_env).unwrap();
+
+        let mut scenv = self.type_env.clone();
+
+        let mut expls = vec![];
+        for mi in ic.methods {
+            let name = mi.0;
+            let (var, sc) = required_methods.remove(&name).expect("unexpected method");
+
+            scenv.insert(var, ty.clone()); // actually, var is the same for every method
+
+            let alts = build_alts(mi.1, &self.type_env);
+
+            expls.push(Expl(name, build_scheme(sc, &scenv), alts));
+        }
+
+        let r = ti_program(
+            &self.class_env,
+            self.assumptions.clone(),
+            &Program(vec![BindGroup(expls, vec![])]),
+        );
+        println!("{r:#?}");
+
+        if !required_methods.is_empty() {
+            panic!("missing method impls: {:?}", required_methods);
+        }
+    }
+
+    fn define_datatype(&mut self, dt: DataType) {
+        let type_arity = dt.genvars.len();
+        let kind = Kind::ty_constructor(type_arity);
+        let dty = Type::TCon(Tycon(dt.typename.clone(), kind));
+        self.type_env.insert(dt.typename.clone(), dty.clone());
+
+        let mut method_tenv = self.type_env.clone();
+        let (kinds, preds) = build_typeargs(dt.genvars, &mut method_tenv);
+
+        for (i, params) in dt.constructors {
+            let args: Vec<_> = params
+                .into_iter()
+                .map(|p| build_type(p, &method_tenv))
+                .collect();
+
+            // apply the type constructor
+            let mut tc_args = vec![Type::Unknown; type_arity];
+            for a in args.iter() {
+                match a {
+                    Type::TGen(k) => tc_args[*k] = a.clone(),
+                    _ => todo!("{:?}", a),
+                }
+            }
+            let mut ty = dty.clone();
+            for a in tc_args {
+                ty = Type::tapp(ty, a)
+            }
+
+            // constructor arguments
+            for a in args.into_iter().rev() {
+                ty = Type::func(a, ty);
+            }
+
+            self.assumptions.push(Assump {
+                i,
+                sc: Scheme::Forall(kinds.clone(), Qual(preds.clone(), ty)),
+            });
+        }
+    }
+
+    fn define_globals(&mut self, bg: ast::BindGroup) {
+        let prog = build_program(vec![bg], &self.type_env);
+        let r = ti_program(&self.class_env, self.assumptions.clone(), &prog);
+        println!("{r:#?}");
+        if let Ok(ass) = r {
+            self.assumptions.extend(ass)
+        }
+    }
 }
 
 type Int = usize;
