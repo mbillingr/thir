@@ -6,7 +6,7 @@ grammar;
 
 Int: i64 = <s:r"[0-9]+"> => i64::from_str(s).unwrap();
 Flt: f64 = <s:r"[0-9]+\.[0-9]+"> => f64::from_str(s).unwrap();
-Ident: crate::Id = <s:r"[a-zA-Z_][a-zA-Z0-9_]*"> => s.to_string();
+Ident: crate::Id = <s:r"[a-zA-Z_&=!#><?^*/+\-][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.to_string();
 String: String = <s:r#""[^"]*""#> => s[1..s.len()-1].to_string();
 Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
 
@@ -22,7 +22,7 @@ DefClass: ast::DefClass = {
 }
 
 ImplClass: ast::ImplClass = {
-    "impl" <Ident> "for" <Ident> "{" <Impl *> "}" => ast::ImplClass::new(<>),
+    "impl" <Ident> "for" <Ident> "{" <(<Impl> ";") *> "}" => ast::ImplClass::new(<>),
 }
 
 DataType: ast::DataType = {
@@ -34,9 +34,9 @@ BindGroup: ast::BindGroup = {
 }
 
 Bind: ast::Bind = {
-    <Expl> => ast::Bind::Explicit(<>),
-    <Impl> => ast::Bind::Implicit(<>),
-    "mutual" "{" <Impl *> "}" => ast::Bind::Mutual(<>)
+    <Expl> ";" => ast::Bind::Explicit(<>),
+    <Impl> ";" => ast::Bind::Implicit(<>),
+    "mutual" "{" <(<Impl> ";") *> "}" => ast::Bind::Mutual(<>)
 }
 
 Expl: ast::Expl = {
@@ -108,10 +108,19 @@ Pat: ast::Pat = {
 }
 
 Expr: ast::Expr = {
+    <CallExpr>,
+    "let" <BindGroup> "in" <Expr> => ast::Expr::let_(<>),
+}
+
+CallExpr: ast::Expr = {
+    <SimpleExpr>,
+    <CallExpr> <SimpleExpr> => ast::Expr::app(<>),
+}
+
+SimpleExpr: ast::Expr = {
     <Ident> => ast::Expr::Var(<>),
     <Literal> => ast::Expr::Lit(<>),
-    "(" <Expr> <Expr> ")" => ast::Expr::app(<>),
-    "let" <BindGroup> "in" <Expr> => ast::Expr::let_(<>),
+    "(" <Expr> ")",
 }
 
 Literal: ast::Literal = {
