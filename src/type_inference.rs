@@ -6,11 +6,13 @@ use crate::substitutions::Subst;
 use crate::types::{Type, Tyvar};
 use crate::unification::mgu;
 use crate::{Id, Int};
+use std::collections::HashMap;
 
 /// The type inference state
 pub struct TI {
     subst: Subst,
     count: Int,
+    annotations: HashMap<*const u8, Type>,
 }
 
 impl TI {
@@ -18,6 +20,7 @@ impl TI {
         TI {
             subst: Subst::null_subst(),
             count: 0,
+            annotations: Default::default(),
         }
     }
 
@@ -47,6 +50,14 @@ impl TI {
 
     fn ext_subst(&mut self, s: Subst) {
         self.subst = s.compose(&self.subst); // todo: is the order of composition correct?
+    }
+
+    pub fn annotate<T>(&mut self, thing: &T, t: Type) {
+        self.annotations.insert(thing as *const T as *const u8, t);
+    }
+
+    pub fn get_annotation<T>(&self, thing: &T) -> Option<&Type> {
+        self.annotations.get(&(thing as *const T as *const u8))
     }
 }
 

@@ -21,12 +21,12 @@ pub enum Literal {
     Str(Rc<str>),
 }
 
-fn ti_lit(_ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
+fn ti_lit(_ti: &mut TI, l: &Literal) -> (Vec<Pred>, Type) {
     match l {
-        Literal::Char(_) => Ok((vec![], Type::t_char())),
-        Literal::Str(_) => Ok((vec![], Type::t_string())),
-        Literal::Int(_) => Ok((vec![], Type::t_int())),
-        Literal::Rat(_) => Ok((vec![], Type::t_double())),
+        Literal::Char(_) => (vec![], Type::t_char()),
+        Literal::Str(_) => (vec![], Type::t_string()),
+        Literal::Int(_) => (vec![], Type::t_int()),
+        Literal::Rat(_) => (vec![], Type::t_double()),
     }
 }
 
@@ -72,7 +72,7 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
         }
 
         Pat::PLit(li) => {
-            let (ps, t) = ti_lit(ti, li)?;
+            let (ps, t) = ti_lit(ti, li);
             Ok((ps, vec![], t))
         }
 
@@ -136,16 +136,16 @@ pub fn ti_expr(
     ass: &[Assump],
     expr: &Expr,
 ) -> crate::Result<(Vec<Pred>, Type)> {
-    match expr {
+    let (ps, t) = match expr {
         Expr::Var(i) => {
             let sc = find_scheme(i, ass)?;
             let Qual(ps, t) = ti.fresh_inst(sc);
-            Ok((ps, t))
+            (ps, t)
         }
 
         Expr::Const(Assump { sc, .. }) => {
             let Qual(ps, t) = ti.fresh_inst(sc);
-            Ok((ps, t))
+            (ps, t)
         }
 
         Expr::Lit(li) => ti_lit(ti, li),
@@ -156,7 +156,7 @@ pub fn ti_expr(
             let t = ti.new_tvar(Kind::Star);
             ti.unify(&Type::func(tf, t.clone()), &te)?;
             ps.extend(qs);
-            Ok((ps, t))
+            (ps, t)
         }
 
         Expr::Let(bg, e) => {
@@ -164,9 +164,13 @@ pub fn ti_expr(
             ass_.extend(ass.iter().cloned());
             let (qs, t) = ti_expr(ti, ce, &ass_, e)?;
             ps.extend(qs);
-            Ok((ps, t))
+            (ps, t)
         }
-    }
+    };
+
+    ti.annotate(expr, t.clone());
+
+    Ok((ps, t))
 }
 
 #[derive(Debug)]
