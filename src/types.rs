@@ -31,16 +31,31 @@ pub enum Type {
 impl Debug for Type {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Type::TVar(tv) => write!(f, "{}", tv.0)?,
-            Type::TCon(tc) => write!(f, "{}", tc.0)?,
-            Type::TApp(rc) => write!(f, "({:?} {:?})", rc.0, rc.1)?,
-            Type::TGen(k) => write!(f, "'{k}")?,
-            Type::Unknown => write!(f, "?")?,
-        };
-        match self.kind() {
-            Ok(k) => write!(f, "  (kind: {:?})", k),
-            Err(_) => write!(f, "  (kind: ?)"),
+            Type::TVar(tv) => write!(f, "{}", tv.0),
+            Type::TCon(tc) => write!(f, "{}", tc.0),
+            Type::TApp(rc) => {
+                write!(f, "(")?;
+                write_tapp(&rc.0, &rc.1, f)?;
+                write!(f, ")")
+            }
+            Type::TGen(k) => write!(f, "'{k}"),
+            Type::Unknown => write!(f, "?"),
         }
+    }
+}
+
+fn write_tapp(rator: &Type, rand: &Type, f: &mut Formatter<'_>) -> std::fmt::Result {
+    match rator {
+        Type::TApp(rc) => match &rc.0 {
+            Type::TVar(Tyvar(i, _)) | Type::TCon(Tycon(i, _)) if i == "->" => {
+                write!(f, "{:?} -> {:?}", rc.1, rand)
+            }
+            _ => {
+                write_tapp(&rc.0, &rc.1, f)?;
+                write!(f, " {:?}", rand)
+            }
+        },
+        _ => write!(f, "{:?} {:?}", rator, rand),
     }
 }
 
