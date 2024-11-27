@@ -247,11 +247,14 @@ impl GlobalContext {
             }
 
             let assump = Assump {
-                i,
+                i: i.clone(),
                 sc: Scheme::Forall(kinds.clone(), Qual(preds.clone(), ty)),
             };
             self.assumptions.push(assump.clone());
             self.constructors.push(assump);
+
+            self.value_env
+                .insert(i.clone(), interpreter::Value::constructor(i));
         }
 
         self.type_env = backup;

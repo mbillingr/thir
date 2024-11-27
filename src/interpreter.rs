@@ -1,3 +1,4 @@
+use crate::assumptions::Assump;
 use crate::specific_inference::{Alt, BindGroup, Expl, Expr, Impl, Literal, Pat, Program};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -16,6 +17,8 @@ pub enum Value {
     String(Rc<str>),
 
     Closure(Closure),
+
+    Constructor(Rc<str>, Vec<Value>),
 }
 
 impl Value {
@@ -27,6 +30,18 @@ impl Value {
         match self {
             Value::Boxed(bx) => *bx.borrow_mut() = value,
             _ => panic!("immutable value"),
+        }
+    }
+
+    pub fn constructor(tag: impl Into<Rc<str>>) -> Self {
+        Value::Constructor(tag.into(), vec![])
+    }
+
+    pub fn as_constructor(&self) -> (Rc<str>, Vec<Value>) {
+        match self {
+            Value::Boxed(bx) => bx.borrow().as_constructor(),
+            Value::Constructor(tag, fields) => (tag.clone(), fields.clone()),
+            _ => panic!("expected constructor"),
         }
     }
 
@@ -65,6 +80,12 @@ impl Value {
     pub fn apply(&self, args: Vec<Value>) -> Value {
         match self {
             Value::Boxed(bx) => bx.borrow().apply(args),
+
+            Value::Constructor(tag, fields) => {
+                let mut fields = fields.clone();
+                fields.extend(args);
+                Value::Constructor(tag.clone(), fields)
+            }
 
             Value::Closure(Closure {
                 alts,
@@ -196,7 +217,20 @@ fn match_pat(pat: &Pat, val: &Value, env: &mut Env) -> bool {
             }
         }
 
-        Pat::PCon(_, _) => todo!(),
+        Pat::PCon(Assump { i, .. }, pats) => {
+            let (tag, fields) = val.as_constructor();
+            if &*tag != i {
+                return false;
+            }
+
+            for (pat, field) in pats.iter().zip(fields.iter()) {
+                if !match_pat(pat, field, env) {
+                    return false;
+                }
+            }
+
+            true
+        }
     }
 }
 
