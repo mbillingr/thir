@@ -18,8 +18,10 @@ pub Toplevel: ast::TopLevel = {
 }
 
 DefClass: ast::DefClass = {
-    "interface" <Ident> <Ident> ":" <Ident *> "{" <(<Ident> ":" <Scheme>) *> "}" => ast::DefClass::new(<>),
-}
+    "interface" <Ident>     <Ident> ":" <Ident *>     "{" <(<Ident> ":" <Scheme>) *> "}" => ast::DefClass::new(<>),
+    "interface" <Ident> "(" <Ident> ":" <Ident *> ")" "{" <(<Ident> ":" <Scheme>) *> "}" => ast::DefClass::new(<>),
+    "interface" <c:Ident> <i:Ident> "{" <ms:(<Ident> ":" <Scheme>) *> "}" => ast::DefClass::new(c, i, vec![], ms),
+ }
 
 ImplClass: ast::ImplClass = {
     "impl" <Ident> "for" <Ident> "{" <(<Impl> ";") *> "}" => ast::ImplClass::new(<>),
@@ -30,13 +32,23 @@ DataType: ast::DataType = {
 }
 
 BindGroup: ast::BindGroup = {
+    <NakedBind> => ast::BindGroup(vec![<>]),
+    <MutualBind> => ast::BindGroup(vec![<>]),
     "{" <Bind *> "}" => ast::BindGroup(<>),
 }
 
-Bind: ast::Bind = {
-    <Expl> ";" => ast::Bind::Explicit(<>),
-    <Impl> ";" => ast::Bind::Implicit(<>),
-    "mutual" "{" <(<Impl> ";") *> "}" => ast::Bind::Mutual(<>)
+Bind = {
+    <NakedBind> ";",
+    <MutualBind>,
+}
+
+NakedBind: ast::Bind = {
+    <Expl> => ast::Bind::Explicit(<>),
+    <Impl> => ast::Bind::Implicit(<>),
+}
+
+MutualBind: ast::Bind = {
+    "mutual" "{" <(<Impl> ";") +> "}" => ast::Bind::Mutual(<>),
 }
 
 Expl: ast::Expl = {
@@ -44,17 +56,15 @@ Expl: ast::Expl = {
 }
 
 Scheme: ast::Scheme = {
-    "forall" <SchemeArg *> "=>" <Type> => {
-        ast::Scheme::new(<>)
-    },
-
+        "forall" <SchemeArg *> "=>" <Type> => ast::Scheme::new(<>),
+    "(" "forall" <SchemeArg *> "=>" <Type> ")" => ast::Scheme::new(<>),
     <Type> => ast::Scheme::new(vec![], <>),
 }
 
 SchemeArg: (crate::Id, kinds::Kind, Vec<crate::Id>) = {
     "(" <Ident> ":" <Kind> <Ident *> ")",
 
-    "(" <Ident> <Ident *> ")" => {
+    "(" <Ident> ":" <Ident *> ")" => {
         let (id, preds) = (<>);
         (id, kinds::Kind::Star, preds)
     },
