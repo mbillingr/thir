@@ -31,10 +31,17 @@ impl Types for Assump {
     }
 }
 
-pub fn find<'a>(i: &Id, ass: impl IntoIterator<Item = &'a Assump>) -> crate::Result<&'a Scheme> {
+pub fn find_scheme<'a>(
+    i: &Id,
+    ass: impl IntoIterator<Item = &'a Assump>,
+) -> crate::Result<&'a Scheme> {
+    find(i, ass).map(|s| &s.sc)
+}
+
+pub fn find<'a>(i: &Id, ass: impl IntoIterator<Item = &'a Assump>) -> crate::Result<&'a Assump> {
     for a in ass {
         if &a.i == i {
-            return Ok(&a.sc);
+            return Ok(a);
         }
     }
     Err(format!("unbound identifier: {i}"))

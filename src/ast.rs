@@ -70,7 +70,7 @@ pub enum Pat {
     PAs(Id, Box<Pat>),
     PLit(Literal),
     PNpk(Id, i64),
-    //PCon(Assump, Vec<Pat>),  //todo: figure this one out
+    PCon(Id, Vec<Pat>),
 }
 
 impl Pat {

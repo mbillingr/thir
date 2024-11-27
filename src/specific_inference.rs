@@ -1,5 +1,5 @@
 use crate::ambiguity::{default_subst, defaulted_preds};
-use crate::assumptions::{find, Assump};
+use crate::assumptions::{find_scheme, Assump};
 use crate::classes::ClassEnv;
 use crate::kinds::Kind;
 use crate::lists::{eq_diff, eq_intersect, eq_union, rfold1};
@@ -138,7 +138,7 @@ fn ti_expr(
 ) -> crate::Result<(Vec<Pred>, Type)> {
     match expr {
         Expr::Var(i) => {
-            let sc = find(i, ass)?;
+            let sc = find_scheme(i, ass)?;
             let Qual(ps, t) = ti.fresh_inst(sc);
             Ok((ps, t))
         }

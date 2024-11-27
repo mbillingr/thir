@@ -118,7 +118,7 @@ Pat: ast::Pat = {
     "(" <Pat> ")" "as" <Ident> => ast::Pat::pas(<>),
     <Literal> => ast::Pat::PLit(<>),
     <Ident> "+" <Int> => ast::Pat::PNpk(<>),
-    //"(" <Assump> <Pat*> ")" => ast::Pat::PCon(<>),
+    "(" "!" <Ident> <Pat*> ")" => ast::Pat::PCon(<>),
 }
 
 Expr: ast::Expr = {

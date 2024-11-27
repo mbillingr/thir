@@ -166,7 +166,7 @@ impl GlobalContext {
 
             scenv.insert(var, ty.clone()); // actually, var is the same for every method
 
-            let alts = build_alts(mi.1, &self.type_env);
+            let alts = build_alts(mi.1, &self.type_env, &self.assumptions);
 
             expls.push(Expl(name, build_scheme(sc, &scenv), alts));
         }
@@ -191,31 +191,34 @@ impl GlobalContext {
         let type_arity = dt.genvars.len();
         let kind = Kind::ty_constructor(type_arity);
         let dty = Type::TCon(Tycon(dt.typename.clone(), kind));
+        println!("Dt: {:?}", dty);
         self.type_env.insert(dt.typename.clone(), dty.clone());
+
+        println!("Ks: {:?}", dt.genvars);
 
         let mut method_tenv = self.type_env.clone();
         let (kinds, preds) = build_typeargs(dt.genvars, &mut method_tenv);
 
+        println!("ENV: {:?}", method_tenv);
+
         for (i, params) in dt.constructors {
+            println!("Ks: {:?}", kinds);
+            println!("Ps: {:?}", preds);
+            println!("As: {:?}", params);
+
             let args: Vec<_> = params
                 .into_iter()
                 .map(|p| build_type(p, &method_tenv))
                 .collect();
 
-            // apply the type constructor
-            let mut tc_args = vec![Type::Unknown; type_arity];
-            for a in args.iter() {
-                match a {
-                    Type::TGen(k) => tc_args[*k] = a.clone(),
-                    _ => todo!("{:?}", a),
-                }
-            }
+            // apply the type-constructor
             let mut ty = dty.clone();
+            let tc_args = (0..type_arity).map(|k| Type::TGen(k));
             for a in tc_args {
                 ty = Type::tapp(ty, a)
             }
 
-            // constructor arguments
+            // constructor-function arguments
             for a in args.into_iter().rev() {
                 ty = Type::func(a, ty);
             }
@@ -226,11 +229,13 @@ impl GlobalContext {
             });
         }
 
+        println!("{:#?}", self.assumptions);
+
         Ok(())
     }
 
     fn define_globals(&mut self, bg: ast::BindGroup) -> Result<()> {
-        let prog = build_program(vec![bg], &self.type_env);
+        let prog = build_program(vec![bg], &self.type_env, &self.assumptions);
         let r = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
         println!("{r:#?}");
         self.assumptions.extend(r);
