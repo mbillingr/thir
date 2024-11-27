@@ -253,6 +253,43 @@ pub struct Closure {
 
 impl std::fmt::Debug for Closure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<closure {:?}>", self.gathered_args)
+        write!(
+            f,
+            "<closure [{}]>",
+            self.gathered_args
+                .iter()
+                .map(|v| format!("{}", v))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::Uninitialized => write!(f, "<uninitialized>"),
+            Value::Boxed(bx) => write!(f, "{:?}", bx.borrow()),
+            Value::Int(x) => write!(f, "{}", x),
+            Value::Char(ch) => write!(f, "{}", ch),
+            Value::Float(x) => write!(f, "{}", x),
+            Value::String(s) => write!(f, "{:?}", s),
+            Value::Closure(c) => write!(f, "{:?}", c),
+            Value::Constructor(tag, fields) => {
+                write!(f, "{}", tag)?;
+                if !fields.is_empty() {
+                    write!(
+                        f,
+                        " {}",
+                        fields
+                            .iter()
+                            .map(|v| format!("{}", v))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    )?;
+                }
+                Ok(())
+            }
+        }
     }
 }

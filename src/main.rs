@@ -284,7 +284,7 @@ impl GlobalContext {
 
         let value = interpreter::eval_expr(&expr, &self.value_env);
 
-        Ok(Box::new(format!("{:?}, where {:?}\n{:?}\n", t_, rs, value)))
+        Ok(Box::new(format!("{:?}, where {:?}\n{}\n", t_, rs, value)))
     }
 }
 
