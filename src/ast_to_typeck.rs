@@ -25,13 +25,29 @@ pub fn build_bindgroup(
     tyenv: &TEnv,
     constructors: &[Assump],
 ) -> si::BindGroup {
-    let mut expls = vec![];
-    let mut impls = vec![];
+    let mut decls = HashMap::new();
+    let mut binds = vec![];
 
     for b in bg {
         match b {
-            ast::Bind::Explicit(expl) => expls.push(build_expl(expl, tyenv, constructors)),
-            ast::Bind::Implicit(impl_) => impls.push(vec![build_impl(impl_, tyenv, constructors)]),
+            ast::Bind::Declaration(decl) => {
+                decls.insert(decl.0.clone(), decl);
+            }
+            ast::Bind::Implicit(_) => binds.push(b),
+            ast::Bind::Mutual(_) => binds.push(b),
+        }
+    }
+
+    let mut expls = vec![];
+    let mut impls = vec![];
+
+    for b in binds {
+        match b {
+            ast::Bind::Declaration(_) => unreachable!(),
+            ast::Bind::Implicit(impl_) => match decls.remove(&impl_.0) {
+                None => impls.push(vec![build_impl(impl_, tyenv, constructors)]),
+                Some(decl) => expls.push(build_expl(decl, impl_, tyenv, constructors)),
+            },
             ast::Bind::Mutual(mut_) => impls.push(
                 mut_.into_iter()
                     .map(|impl_| build_impl(impl_, tyenv, constructors))
@@ -53,7 +69,8 @@ pub fn build_impl(
 }
 
 pub fn build_expl(
-    ast::Expl(id, sc, alts): ast::Expl,
+    ast::Decl(id, sc): ast::Decl,
+    ast::Impl(_, alts): ast::Impl,
     tyenv: &TEnv,
     constructors: &[Assump],
 ) -> si::Expl {

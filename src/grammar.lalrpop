@@ -18,9 +18,9 @@ pub Toplevel: ast::TopLevel = {
 }
 
 DefClass: ast::DefClass = {
-    "interface" <Ident>     <Ident> ":" <Ident *>     "{" <(<Ident> ":" <Scheme>) *> "}" => ast::DefClass::new(<>),
-    "interface" <Ident> "(" <Ident> ":" <Ident *> ")" "{" <(<Ident> ":" <Scheme>) *> "}" => ast::DefClass::new(<>),
-    "interface" <c:Ident> <i:Ident> "{" <ms:(<Ident> ":" <Scheme>) *> "}" => ast::DefClass::new(c, i, vec![], ms),
+    "interface" <Ident>     <Ident> ":" <Ident *>     "{" <(<Ident> ":" <Scheme> ";") *> "}" => ast::DefClass::new(<>),
+    "interface" <Ident> "(" <Ident> ":" <Ident *> ")" "{" <(<Ident> ":" <Scheme>  ";") *> "}" => ast::DefClass::new(<>),
+    "interface" <c:Ident> <i:Ident> "{" <ms:(<Ident> ":" <Scheme> ";") *> "}" => ast::DefClass::new(c, i, vec![], ms),
  }
 
 ImplClass: ast::ImplClass = {
@@ -28,7 +28,7 @@ ImplClass: ast::ImplClass = {
 }
 
 DataType: ast::DataType = {
-    "data" <Ident> <SchemeArg *> "=" <PipeList<(<Ident> <Type*>)>> => ast::DataType::new(<>),
+    "data" <Ident> <SchemeArg *> "=" <PipeList<(<Ident> <Types>)>> => ast::DataType::new(<>),
 }
 
 BindGroup: ast::BindGroup = {
@@ -43,7 +43,7 @@ Bind = {
 }
 
 NakedBind: ast::Bind = {
-    <Expl> => ast::Bind::Explicit(<>),
+    <Decl> => ast::Bind::Declaration(<>),
     <Impl> => ast::Bind::Implicit(<>),
 }
 
@@ -51,8 +51,8 @@ MutualBind: ast::Bind = {
     "mutual" "{" <(<Impl> ";") +> "}" => ast::Bind::Mutual(<>),
 }
 
-Expl: ast::Expl = {
-    <Ident> ":" <Scheme> <Alts> => ast::Expl(<>),
+Decl: ast::Decl = {
+    <Ident> ":" <Scheme> => ast::Decl(<>),
 }
 
 Scheme: ast::Scheme = {
@@ -82,15 +82,27 @@ SimpleKind: kinds::Kind = {
     "(" <Kind> ")",
 }
 
+Types: Vec<ast::Type> = {
+    <SimpleType *>
+}
+
 Type: ast::Type = {
+    <TypeInfix>,
+}
+
+TypeInfix: ast::Type = {
+    <TypeCall>,
+    <TypeCall> "->" <TypeInfix> => ast::Type::func(<>),
+}
+
+TypeCall: ast::Type = {
     <SimpleType>,
-    <SimpleType> "->" <Type> => ast::Type::func(<>),
+    <TypeCall> <SimpleType>  => ast::Type::apply(<>),
 }
 
 SimpleType: ast::Type = {
     <Ident> => ast::Type::Named(<>),
     "[" <Type> "]" => ast::Type::list(<>),
-    "(" <Type> <Type> ")" => ast::Type::apply(<>),
     "(" <Type> ")",
 }
 

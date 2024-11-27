@@ -101,14 +101,14 @@ impl Expr {
 pub struct Alt(pub Vec<Pat>, pub Expr);
 
 #[derive(Debug)]
-pub struct Expl(pub Id, pub Scheme, pub Vec<Alt>);
+pub struct Decl(pub Id, pub Scheme);
 
 #[derive(Debug)]
 pub struct Impl(pub Id, pub Vec<Alt>);
 
 #[derive(Debug)]
 pub enum Bind {
-    Explicit(Expl),
+    Declaration(Decl),
     Implicit(Impl),
     Mutual(Vec<Impl>),
 }
