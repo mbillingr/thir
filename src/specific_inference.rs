@@ -21,7 +21,7 @@ pub enum Literal {
     Str(String),
 }
 
-fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
+fn ti_lit(_ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
     match l {
         Literal::Char(_) => Ok((vec![], Type::t_char())),
         Literal::Str(_) => Ok((vec![], Type::t_string())),
