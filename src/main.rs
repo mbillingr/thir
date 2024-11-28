@@ -102,22 +102,16 @@ impl GlobalContext {
         tenv.insert("String".into(), Type::t_string());
         tenv.insert("[]".into(), Type::t_list());
 
-        let assumptions = vec![
-            Assump {
-                i: "show".into(),
-                sc: Scheme::Forall(
-                    list![Kind::Star],
-                    Qual(
-                        vec![Pred::IsIn("Show".into(), Type::TGen(0))],
-                        Type::func(Type::TGen(0), Type::t_string()),
-                    ),
+        let assumptions = vec![Assump {
+            i: "show".into(),
+            sc: Scheme::Forall(
+                list![Kind::Star],
+                Qual(
+                    vec![Pred::IsIn("Show".into(), Type::TGen(0))],
+                    Type::func(Type::TGen(0), Type::t_string()),
                 ),
-            },
-            Assump {
-                i: "abc".into(),
-                sc: Scheme::Forall(list![], Qual(vec![], Type::list(Type::t_int()))),
-            },
-        ];
+            ),
+        }];
 
         let value_env = HashMap::new();
 
@@ -140,12 +134,20 @@ impl GlobalContext {
         {
             // Add a type class and primitives for arithmetic subtraction
             self.class_env = EnvTransformer::add_class("Sub".into(), vec![])
+                .compose(EnvTransformer::add_inst(
+                    vec![],
+                    Pred::IsIn("Sub".into(), Type::t_int()),
+                ))
+                .compose(EnvTransformer::add_inst(
+                    vec![],
+                    Pred::IsIn("Sub".into(), Type::t_double()),
+                ))
                 .apply(&self.class_env)
                 .unwrap();
 
             let sub_scm = self.build_scheme(
                 grammar::SchemeParser::new()
-                    .parse("forall a => a -> a -> a")
+                    .parse("forall (a : Sub) => a -> a -> a")
                     .unwrap(),
             );
             self.assumptions.push(Assump {
@@ -189,11 +191,22 @@ impl GlobalContext {
         {
             // Add a type class and primitives for zero constants
             self.class_env = EnvTransformer::add_class("Zero".into(), vec![])
+                .compose(EnvTransformer::add_inst(
+                    vec![],
+                    Pred::IsIn("Zero".into(), Type::t_int()),
+                ))
+                .compose(EnvTransformer::add_inst(
+                    vec![],
+                    Pred::IsIn("Zero".into(), Type::t_double()),
+                ))
                 .apply(&self.class_env)
                 .unwrap();
 
-            let zero_scm =
-                self.build_scheme(grammar::SchemeParser::new().parse("forall a => a").unwrap());
+            let zero_scm = self.build_scheme(
+                grammar::SchemeParser::new()
+                    .parse("forall (a : Zero) => a")
+                    .unwrap(),
+            );
             self.assumptions.push(Assump {
                 i: "zero".into(),
                 sc: zero_scm,

@@ -187,10 +187,10 @@ impl Value {
             }
 
             Value::Method(impls, gathered_args) => {
+                // although this late binding / dynamic dispatch feels super inefficient,
+                // it's needed for generic code, where the concrete type is not known during checking/annotation
                 let mut gathered_args = gathered_args.clone();
                 gathered_args.extend(args);
-
-                // todo: this late binding / dynamic dispatch feels super inefficient
 
                 for (sc, value) in impls.borrow().iter() {
                     if scheme_matches(sc, &gathered_args, None) {
@@ -200,7 +200,6 @@ impl Value {
 
                 Value::Method(impls.clone(), gathered_args)
             }
-
             _ => panic!("non-callable value {}", self),
         }
     }
@@ -256,16 +255,16 @@ impl Context {
                     .clone()
                     .resolve();
 
-                // this horrible hack dispatches "constant" methods
+                // I guess this can be considered static dispatch
                 if let Value::Method(impls, args) = &val {
+                    assert!(args.is_empty());
                     if let Some(t) = self.ti.get_annotation(expr) {
-                        if t.as_fn().is_none() {
-                            for (sc, value) in impls.borrow().iter() {
-                                if scheme_matches(sc, &args, Some(t.clone())) {
-                                    return value.clone();
-                                }
+                        for (sc, value) in impls.borrow().iter() {
+                            if scheme_matches_type(sc, &t) {
+                                return value.clone();
                             }
                         }
+                        println!("WARNING: no method matched for {:?}", t);
                     }
                 }
                 val
@@ -348,6 +347,10 @@ impl Context {
             Literal::Str(s) => val.as_string() == *s,
         }
     }
+}
+
+fn scheme_matches_type(Scheme::Forall(_, Qual(_, ty)): &Scheme, t: &Type) -> bool {
+    ty == t
 }
 
 fn scheme_matches(
