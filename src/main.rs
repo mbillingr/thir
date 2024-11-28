@@ -37,18 +37,26 @@ use crate::type_inference::TI;
 use crate::types::{Tycon, Type};
 use lalrpop_util::lalrpop_mod;
 use std::collections::HashMap;
+use std::env;
+use std::fs;
 
 type Result<T> = std::result::Result<T, String>;
 
 fn main() -> Result<()> {
-    let mut ctx = GlobalContext::new();
-    ctx.init();
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 2 {
+        return Err(format!("Usage: {} <file_path>", args[0]));
+    }
 
-    let stdin = std::io::read_to_string(std::io::stdin()).map_err(|e| e.to_string())?;
+    let file_path = &args[1];
+    let file_content = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
 
     let program = grammar::ProgramParser::new()
-        .parse(&stdin)
+        .parse(&file_content)
         .map_err(|e| e.to_string())?;
+
+    let mut ctx = GlobalContext::new();
+    ctx.init();
 
     for top in program {
         ctx.exec_toplevel(top)?;
