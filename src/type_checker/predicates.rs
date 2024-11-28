@@ -1,7 +1,7 @@
-use crate::substitutions::{Subst, Types};
-use crate::types::{Type, Tyvar};
-use crate::unification::{matches, mgu};
-use crate::Id;
+use crate::type_checker::substitutions::{Subst, Types};
+use crate::type_checker::types::{Type, Tyvar};
+use crate::type_checker::unification::{matches, mgu};
+use crate::type_checker::Id;
 
 /// A predicate imposes constraints on types
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]

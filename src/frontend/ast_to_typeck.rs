@@ -1,16 +1,18 @@
-use crate::assumptions::find;
-use crate::kinds::Kind;
-use crate::lists::List;
-use crate::predicates::Pred;
-use crate::{
-    ast, predicates, qualified, scheme, specific_inference as si, types, GlobalContext, Id,
-};
+//! Transform the parsed AST into the representation used by the type checker.
+
+use crate::frontend::runner::Runner;
+use crate::frontend::{ast, type_inference as si};
+use crate::type_checker::assumptions::find;
+use crate::type_checker::kinds::Kind;
+use crate::type_checker::predicates::Pred;
+use crate::type_checker::{predicates, qualified, scheme, types, Id};
+use crate::utils::lists::List;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 pub type TEnv = HashMap<Id, types::Type>;
 
-impl GlobalContext {
+impl Runner {
     pub fn with_tyenv<T>(&mut self, temporary_env: TEnv, f: impl FnOnce(&mut Self) -> T) -> T {
         let backup = std::mem::replace(&mut self.type_env, temporary_env);
         let result = f(self);

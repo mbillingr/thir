@@ -1,6 +1,6 @@
-use crate::kinds::HasKind;
-use crate::substitutions::{Subst, Types};
-use crate::types::{Type, Tyvar};
+use crate::type_checker::kinds::HasKind;
+use crate::type_checker::substitutions::{Subst, Types};
+use crate::type_checker::types::{Type, Tyvar};
 
 pub fn mgu(a: &Type, b: &Type) -> crate::Result<Subst> {
     use Type::*;

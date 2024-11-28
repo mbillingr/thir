@@ -1,15 +1,17 @@
-use crate::ambiguity::{default_subst, defaulted_preds};
-use crate::assumptions::{find_scheme, Assump};
-use crate::classes::ClassEnv;
-use crate::kinds::Kind;
-use crate::lists::{eq_diff, eq_intersect, eq_union, rfold1};
-use crate::predicates::Pred;
-use crate::qualified::Qual;
-use crate::scheme::Scheme;
-use crate::substitutions::Types;
-use crate::type_inference::TI;
-use crate::types::{Type, Tyvar};
-use crate::Id;
+//! Type inference specific to the language's ast.
+
+use crate::type_checker::ambiguity::{default_subst, defaulted_preds};
+use crate::type_checker::assumptions::{find_scheme, Assump};
+use crate::type_checker::classes::ClassEnv;
+use crate::type_checker::kinds::Kind;
+use crate::type_checker::predicates::Pred;
+use crate::type_checker::qualified::Qual;
+use crate::type_checker::scheme::Scheme;
+use crate::type_checker::substitutions::Types;
+use crate::type_checker::type_inference::TI;
+use crate::type_checker::types::{Type, Tyvar};
+use crate::type_checker::Id;
+use crate::utils::lists::{eq_diff, eq_intersect, eq_union, rfold1};
 use std::iter::once;
 use std::rc::Rc;
 

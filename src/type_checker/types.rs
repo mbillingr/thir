@@ -2,8 +2,9 @@
 Types
 !*/
 
-use crate::kinds::{HasKind, Kind};
-use crate::{Id, Int};
+use crate::type_checker::kinds::{HasKind, Kind};
+use crate::type_checker::GenId;
+use crate::type_checker::Id;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
@@ -21,7 +22,7 @@ pub enum Type {
     TApp(Rc<(Self, Self)>),
 
     /// A generic (quantified) type variable
-    TGen(Int),
+    TGen(GenId),
 
     /// Unknown types can occur in type constructors that don't bind all generic params.
     /// e.g. in `data Option a = None | Some a`, `a` will be unknown in the `None` constructor.

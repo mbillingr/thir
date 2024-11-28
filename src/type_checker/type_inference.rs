@@ -1,17 +1,18 @@
-use crate::instantiate::Instantiate;
-use crate::kinds::Kind;
-use crate::qualified::Qual;
-use crate::scheme::Scheme;
-use crate::substitutions::Subst;
-use crate::types::{Type, Tyvar};
-use crate::unification::mgu;
-use crate::{Id, Int};
+use crate::type_checker::instantiate::Instantiate;
+use crate::type_checker::kinds::Kind;
+use crate::type_checker::qualified::Qual;
+use crate::type_checker::scheme::Scheme;
+use crate::type_checker::substitutions::Subst;
+use crate::type_checker::types::{Type, Tyvar};
+use crate::type_checker::unification::mgu;
+use crate::type_checker::GenId;
+use crate::type_checker::Id;
 use std::collections::HashMap;
 
 /// The type inference state
 pub struct TI {
     subst: Subst,
-    count: Int,
+    count: GenId,
     annotations: HashMap<*const u8, Type>,
 }
 
@@ -63,6 +64,6 @@ impl TI {
     }
 }
 
-fn enum_id(n: Int) -> Id {
+fn enum_id(n: GenId) -> Id {
     format!("v{n}")
 }

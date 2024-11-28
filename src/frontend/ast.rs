@@ -1,6 +1,8 @@
-use crate::kinds::Kind;
-pub use crate::specific_inference::Literal;
-use crate::Id;
+//! The AST emitted by the parser.
+
+pub use crate::frontend::type_inference::Literal;
+use crate::type_checker::kinds::Kind;
+use crate::type_checker::Id;
 use std::rc::Rc;
 
 #[derive(Debug)]

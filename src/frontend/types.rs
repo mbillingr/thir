@@ -1,7 +1,9 @@
-use crate::classes::EnvTransformer;
-use crate::kinds::Kind;
-use crate::predicates::Pred::IsIn;
-use crate::types::{Tycon, Type};
+//! Define types specific to the language.
+
+use crate::type_checker::classes::EnvTransformer;
+use crate::type_checker::kinds::Kind;
+use crate::type_checker::predicates::Pred::IsIn;
+use crate::type_checker::types::{Tycon, Type};
 
 impl Type {
     /// construct the unit type

@@ -1,8 +1,8 @@
-use crate::classes::ClassEnv;
-use crate::lists::eq_diff;
-use crate::predicates::Pred;
-use crate::substitutions::{Subst, Types};
-use crate::types::{Type, Tyvar};
+use crate::type_checker::classes::ClassEnv;
+use crate::type_checker::predicates::Pred;
+use crate::type_checker::substitutions::{Subst, Types};
+use crate::type_checker::types::{Type, Tyvar};
+use crate::utils::lists::eq_diff;
 
 pub struct Ambiguity(pub Tyvar, pub Vec<Pred>);
 
