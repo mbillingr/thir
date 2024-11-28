@@ -91,6 +91,7 @@ impl GlobalContext {
         let methods = HashMap::default();
 
         let mut tenv = HashMap::new();
+        tenv.insert("()".into(), Type::t_unit());
         tenv.insert("->".into(), Type::t_arrow());
         tenv.insert("Int".into(), Type::t_int());
         tenv.insert("Double".into(), Type::t_double());
@@ -127,6 +128,24 @@ impl GlobalContext {
 
     fn init(&mut self) {
         {
+            // Add a primitive function for printing strings
+            let puts_scm =
+                self.build_scheme(grammar::SchemeParser::new().parse("String -> ()").unwrap());
+
+            self.assumptions.push(Assump {
+                i: "puts".into(),
+                sc: puts_scm,
+            });
+
+            self.value_env.insert(
+                "puts".into(),
+                interpreter::Value::primitive("puts", 1, |args| {
+                    let s = args[0].as_string();
+                    print!("{}", s);
+                    interpreter::Value::Unit
+                }),
+            );
+
             // Add a type class and primitives for arithmetic subtraction
             self.class_env = EnvTransformer::add_class("Sub".into(), vec![])
                 .compose(EnvTransformer::add_inst(

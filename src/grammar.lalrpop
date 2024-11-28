@@ -8,7 +8,7 @@ grammar;
 Int: i64 = <s:r"[0-9]+"> => i64::from_str(s).unwrap();
 Flt: f64 = <s:r"[0-9]+\.[0-9]+"> => f64::from_str(s).unwrap();
 //Ident: crate::Id = <s:r"[a-zA-Z_&=!#><?^*/+\-][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.to_string();
-String: Rc<str> = <s:r#""[^"]*""#> => s[1..s.len()-1].to_string().into();
+String: Rc<str> = <s:r#""[^"]*""#> => ast::unescape(&s[1..s.len()-1]);
 Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
 
 VarIdent: crate::Id = <s:r"[a-z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into();
@@ -112,6 +112,7 @@ SimpleType: ast::Type = {
     <AnyIdent> => ast::Type::Named(<>),
     "[" <Type> "]" => ast::Type::list(<>),
     "(" <Type> ")",
+    "()" => ast::Type::Named(<>.into()),
 }
 
 

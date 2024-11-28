@@ -1,6 +1,7 @@
 use crate::kinds::Kind;
 pub use crate::specific_inference::Literal;
 use crate::Id;
+use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum TopLevel {
@@ -149,4 +150,26 @@ impl Scheme {
     pub fn new(genvars: Vec<(Id, Kind, Vec<Id>)>, ty: Type) -> Self {
         Scheme { genvars, ty }
     }
+}
+
+pub fn unescape(s: &str) -> Rc<str> {
+    let mut out = String::new();
+    let mut chars = s.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('r') => out.push('\r'),
+                Some('t') => out.push('\t'),
+                Some('0') => out.push('\0'),
+                Some(c) => out.push(c),
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+
+    out.into()
 }
