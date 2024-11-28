@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum TopLevel {
+    Include(Rc<str>),
     DefClass(DefClass),
     ImplClass(ImplClass),
     DataType(DataType),

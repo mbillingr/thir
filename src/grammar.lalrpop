@@ -23,6 +23,11 @@ pub Toplevel: ast::TopLevel = {
     <ImplClass> => ast::TopLevel::ImplClass(<>),
     <DataType> => ast::TopLevel::DataType(<>),
     <Bind> => ast::TopLevel::BindGroup(ast::BindGroup(vec![<>])),
+    <Include> => ast::TopLevel::Include(<>),
+}
+
+Include = {
+    "include" <String>,
 }
 
 DefClass: ast::DefClass = {

@@ -40,6 +40,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -49,19 +50,10 @@ fn main() -> Result<()> {
         return Err(format!("Usage: {} <file_path>", args[0]));
     }
 
-    let file_path = &args[1];
-    let file_content = fs::read_to_string(file_path).map_err(|e| e.to_string())?;
-
-    let program = grammar::ProgramParser::new()
-        .parse(&file_content)
-        .map_err(|e| e.to_string())?;
-
     let mut ctx = GlobalContext::new();
     ctx.init();
 
-    for top in program {
-        ctx.exec_toplevel(top)?;
-    }
+    ctx.run_file(&args[1], &PathBuf::from("."))?;
 
     ctx.eval_expr(ast::Expr::app(
         ast::Expr::Var("main".into()),
@@ -272,8 +264,30 @@ impl GlobalContext {
         }
     }
 
-    fn exec_toplevel(&mut self, top: ast::TopLevel) -> Result<()> {
+    /// load and run a file relative to the current file.
+    fn run_file(&mut self, file_path: &str, current_dir: &Path) -> Result<()> {
+        let full_path = current_dir.join(file_path);
+        let new_dir = full_path.parent().unwrap();
+
+        let file_content = fs::read_to_string(&full_path).map_err(|e| e.to_string())?;
+        self.run_str(&file_content, new_dir)?;
+        Ok(())
+    }
+
+    fn run_str(&mut self, file_content: &str, current_dir: &Path) -> Result<()> {
+        let program = grammar::ProgramParser::new()
+            .parse(&file_content)
+            .map_err(|e| e.to_string())?;
+
+        for top in program {
+            self.exec_toplevel(top, current_dir)?;
+        }
+        Ok(())
+    }
+
+    fn exec_toplevel(&mut self, top: ast::TopLevel, current_dir: &Path) -> Result<()> {
         match top {
+            ast::TopLevel::Include(path) => self.run_file(&*path, current_dir),
             ast::TopLevel::DefClass(dc) => self.define_class(dc),
             ast::TopLevel::ImplClass(ic) => self.implement_class(ic),
             ast::TopLevel::DataType(dt) => self.define_datatype(dt),
@@ -432,20 +446,15 @@ impl GlobalContext {
         Ok(())
     }
 
-    fn eval_expr(&mut self, expr: ast::Expr) -> Result<Box<dyn ToString>> {
+    fn eval_expr(&mut self, expr: ast::Expr) -> Result<interpreter::Value> {
         let expr = self.build_expr(expr);
 
         let mut ti = TI::new();
-        let (ps, t) = ti_expr(&mut ti, &self.class_env, &self.assumptions, &expr)?;
-
-        let s = ti.get_subst();
-        let rs = self.class_env.reduce(&s.apply(&ps))?;
-
-        let t_ = s.apply(&t);
+        let _ = ti_expr(&mut ti, &self.class_env, &self.assumptions, &expr)?;
 
         let value = interpreter::Context::new(ti).eval_expr(&expr, &self.value_env);
 
-        Ok(Box::new(format!("{:?}, where {:?}\n{}\n", t_, rs, value)))
+        Ok(value)
     }
 }
 
