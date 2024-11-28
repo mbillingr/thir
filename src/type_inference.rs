@@ -55,6 +55,12 @@ impl TI {
     pub fn annotate<T>(&mut self, thing: &T, t: Type) {
         self.annotations.insert(thing as *const T as *const u8, t);
     }
+
+    pub fn get_annotation<T>(&self, thing: &T) -> Option<Type> {
+        self.annotations
+            .get(&(thing as *const T as *const u8))
+            .map(|t| self.subst.apply(t))
+    }
 }
 
 fn enum_id(n: Int) -> Id {

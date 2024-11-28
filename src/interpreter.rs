@@ -2,13 +2,16 @@ use crate::assumptions::Assump;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
 use crate::specific_inference::{Alt, BindGroup, Expl, Expr, Impl, Literal, Pat, Program};
+use crate::type_inference::TI;
 use crate::types::{Tycon, Type, Tyvar};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub struct Context {}
+pub struct Context {
+    ti: Rc<TI>,
+}
 
 pub type Env = HashMap<String, Value>;
 
@@ -27,6 +30,8 @@ pub enum Value {
     Constructor(Rc<str>, Rc<str>, Vec<Value>),
 
     Method(Rc<RefCell<HashMap<Scheme, Value>>>, Vec<Value>),
+
+    Primitive(Primitive, Vec<Value>),
 }
 
 impl Value {
@@ -86,6 +91,10 @@ impl Value {
         }
     }
 
+    pub fn primitive(name: &'static str, arity: usize, f: fn(&[Value]) -> Value) -> Self {
+        Value::Primitive(Primitive { name, arity, f }, vec![])
+    }
+
     pub fn as_int(&self) -> i64 {
         match self {
             Value::Boxed(bx) => bx.borrow().as_int(),
@@ -126,6 +135,19 @@ impl Value {
                 let mut fields = fields.clone();
                 fields.extend(args);
                 Value::Constructor(ty.clone(), tag.clone(), fields)
+            }
+
+            Value::Primitive(prim, gathered_args) => {
+                let mut gathered_args = gathered_args.clone();
+                gathered_args.extend(args);
+
+                assert!(gathered_args.len() <= prim.arity);
+
+                if gathered_args.len() < prim.arity {
+                    return Value::Primitive(prim.clone(), gathered_args);
+                }
+
+                (prim.f)(&gathered_args)
             }
 
             Value::Closure(Closure {
@@ -171,7 +193,7 @@ impl Value {
                 // todo: this late binding / dynamic dispatch feels super inefficient
 
                 for (sc, value) in impls.borrow().iter() {
-                    if scheme_matches(sc, &gathered_args) {
+                    if scheme_matches(sc, &gathered_args, None) {
                         return value.apply(gathered_args);
                     }
                 }
@@ -179,14 +201,14 @@ impl Value {
                 Value::Method(impls.clone(), gathered_args)
             }
 
-            _ => panic!("non-callable value"),
+            _ => panic!("non-callable value {}", self),
         }
     }
 }
 
 impl Context {
-    pub fn new() -> Self {
-        Context {}
+    pub fn new(ti: TI) -> Self {
+        Context { ti: Rc::new(ti) }
     }
     pub fn exec_program(&self, Program(bgs): &Program, env: &mut Env) {
         for bg in bgs {
@@ -227,11 +249,27 @@ impl Context {
 
     pub fn eval_expr(&self, expr: &Expr, env: &Env) -> Value {
         match expr {
-            Expr::Var(x) => env
-                .get(x)
-                .unwrap_or_else(|| panic!("unbound {x}"))
-                .clone()
-                .resolve(),
+            Expr::Var(x) => {
+                let val = env
+                    .get(x)
+                    .unwrap_or_else(|| panic!("unbound {x}"))
+                    .clone()
+                    .resolve();
+
+                // this horrible hack dispatches "constant" methods
+                if let Value::Method(impls, args) = &val {
+                    if let Some(t) = self.ti.get_annotation(expr) {
+                        if t.as_fn().is_none() {
+                            for (sc, value) in impls.borrow().iter() {
+                                if scheme_matches(sc, &args, Some(t.clone())) {
+                                    return value.clone();
+                                }
+                            }
+                        }
+                    }
+                }
+                val
+            }
             Expr::Lit(l) => self.eval_lit(l),
             Expr::Const(_) => unimplemented!(),
             Expr::App(rator, rand) => {
@@ -312,8 +350,12 @@ impl Context {
     }
 }
 
-fn scheme_matches(Scheme::Forall(_, Qual(_, ty)): &Scheme, args: &[Value]) -> bool {
-    let param_tys = ty.fn_arg_types();
+fn scheme_matches(
+    Scheme::Forall(_, Qual(_, ty)): &Scheme,
+    args: &[Value],
+    ret: Option<Type>,
+) -> bool {
+    let (param_tys, ret_ty) = ty.fn_types();
     if param_tys.len() != args.len() {
         return false;
     }
@@ -334,6 +376,11 @@ fn scheme_matches(Scheme::Forall(_, Qual(_, ty)): &Scheme, args: &[Value]) -> bo
             Type::Unknown => unreachable!(),
         }
     }
+
+    if let Some(ret) = ret {
+        return &ret == ret_ty;
+    }
+
     true
 }
 
@@ -357,6 +404,19 @@ impl std::fmt::Debug for Closure {
                 .collect::<Vec<_>>()
                 .join(", ")
         )
+    }
+}
+
+#[derive(Clone)]
+pub struct Primitive {
+    pub name: &'static str,
+    pub arity: usize,
+    pub f: fn(&[Value]) -> Value,
+}
+
+impl std::fmt::Debug for Primitive {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<primitive {}>", self.name)
     }
 }
 
@@ -393,6 +453,7 @@ impl std::fmt::Display for Value {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
+            Value::Primitive(p, _) => write!(f, "{:?}", p),
         }
     }
 }

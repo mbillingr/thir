@@ -73,15 +73,15 @@ impl Type {
         Type::TApp(Rc::new((a, b)))
     }
 
-    /// assuming this is a function type, return all argument types
-    pub fn fn_arg_types(&self) -> Vec<&Type> {
+    /// assuming this is a function type, return all types components (argument and return types)
+    pub fn fn_types(&self) -> (Vec<&Type>, &Type) {
         let mut args = vec![];
         let mut t = self;
         while let Some((arg, ret)) = t.as_fn() {
             args.push(arg);
             t = ret;
         }
-        args
+        (args, t)
     }
 
     /// get argument and return types, if this is a function type

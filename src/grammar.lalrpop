@@ -69,7 +69,7 @@ Decl: ast::Decl = {
     <VarIdent> ":" <Scheme> => ast::Decl(<>),
 }
 
-Scheme: ast::Scheme = {
+pub Scheme: ast::Scheme = {
         "forall" <SchemeArg *> "=>" <Type> => ast::Scheme::new(<>),
     "(" "forall" <SchemeArg *> "=>" <Type> ")" => ast::Scheme::new(<>),
     <Type> => ast::Scheme::new(vec![], <>),

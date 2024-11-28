@@ -43,6 +43,7 @@ type Result<T> = std::result::Result<T, String>;
 
 fn main() {
     let mut ctx = GlobalContext::new();
+    ctx.init();
 
     print!("> ");
     std::io::stdout().flush().unwrap();
@@ -92,7 +93,7 @@ impl GlobalContext {
         let ce = add_core_classes().apply(&ce).unwrap();
         let ce = add_num_classes().apply(&ce).unwrap();
 
-        let methods = Default::default();
+        let methods = HashMap::default();
 
         let mut tenv = HashMap::new();
         tenv.insert("->".into(), Type::t_arrow());
@@ -132,6 +133,87 @@ impl GlobalContext {
             constructors,
             free_decls,
             value_env,
+        }
+    }
+
+    fn init(&mut self) {
+        {
+            // Add a type class and primitives for arithmetic subtraction
+            self.class_env = EnvTransformer::add_class("Sub".into(), vec![])
+                .apply(&self.class_env)
+                .unwrap();
+
+            let sub_scm = self.build_scheme(
+                grammar::SchemeParser::new()
+                    .parse("forall a => a -> a -> a")
+                    .unwrap(),
+            );
+            self.assumptions.push(Assump {
+                i: "sub".into(),
+                sc: sub_scm,
+            });
+
+            let sub_int_scm = grammar::SchemeParser::new()
+                .parse("Int -> Int -> Int")
+                .unwrap();
+            let sub_flt_scm = grammar::SchemeParser::new()
+                .parse("Double -> Double -> Double")
+                .unwrap();
+
+            let mut sub_mth = HashMap::new();
+            sub_mth.insert("sub".into(), ("Int".into(), sub_int_scm.clone()));
+            sub_mth.insert("sub".into(), ("Double".into(), sub_flt_scm.clone()));
+            self.methods.insert("Sub".into(), sub_mth);
+
+            let sub_mth = interpreter::Value::method();
+            sub_mth.add_impl(
+                self.build_scheme(sub_int_scm),
+                interpreter::Value::primitive("i-i", 2, |args| {
+                    let a = args[0].as_int();
+                    let b = args[1].as_int();
+                    interpreter::Value::I64(a - b)
+                }),
+            );
+            sub_mth.add_impl(
+                self.build_scheme(sub_flt_scm),
+                interpreter::Value::primitive("f-f", 2, |args| {
+                    let a = args[0].as_float();
+                    let b = args[1].as_float();
+                    interpreter::Value::F64(a - b)
+                }),
+            );
+
+            self.value_env.insert("sub".into(), sub_mth);
+        }
+
+        {
+            // Add a type class and primitives for zero constants
+            self.class_env = EnvTransformer::add_class("Zero".into(), vec![])
+                .apply(&self.class_env)
+                .unwrap();
+
+            let zero_scm =
+                self.build_scheme(grammar::SchemeParser::new().parse("forall a => a").unwrap());
+            self.assumptions.push(Assump {
+                i: "zero".into(),
+                sc: zero_scm,
+            });
+
+            let zero_int_scm = grammar::SchemeParser::new().parse("Int").unwrap();
+            let zero_flt_scm = grammar::SchemeParser::new().parse("Double").unwrap();
+
+            let mut zero_mth = HashMap::new();
+            zero_mth.insert("zero".into(), ("Int".into(), zero_int_scm.clone()));
+            zero_mth.insert("zero".into(), ("Double".into(), zero_flt_scm.clone()));
+            self.methods.insert("zero".into(), zero_mth);
+
+            let zero_mth = interpreter::Value::method();
+            zero_mth.add_impl(self.build_scheme(zero_int_scm), interpreter::Value::I64(0));
+            zero_mth.add_impl(
+                self.build_scheme(zero_flt_scm),
+                interpreter::Value::F64(0.0),
+            );
+            self.value_env.insert("zero".into(), zero_mth);
         }
     }
 
@@ -208,7 +290,7 @@ impl GlobalContext {
         }
 
         let mut prog = Program(vec![BindGroup(expls, vec![])]);
-        let _ = ti_program(&class_env, self.assumptions.clone(), &prog)?;
+        let (_, ti) = ti_program(&class_env, self.assumptions.clone(), &prog)?;
 
         if !required_methods.is_empty() {
             return Err(format!("missing method impls: {:?}", required_methods));
@@ -216,7 +298,7 @@ impl GlobalContext {
 
         self.class_env = class_env;
 
-        let ctx = interpreter::Context::new();
+        let ctx = interpreter::Context::new(ti);
         for Expl(name, sc, alts) in prog.0.pop().unwrap().0 {
             let val = ctx.eval_alts(&alts, &self.value_env);
             self.value_env.get(&name).unwrap().add_impl(sc, val);
@@ -270,10 +352,10 @@ impl GlobalContext {
 
     fn define_globals(&mut self, bg: ast::BindGroup) -> Result<()> {
         let prog = self.build_program(vec![bg]);
-        let (r, _) = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
+        let (r, ti) = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
         self.assumptions.extend(r);
 
-        interpreter::Context::new().exec_program(&prog, &mut self.value_env);
+        interpreter::Context::new(ti).exec_program(&prog, &mut self.value_env);
 
         Ok(())
     }
@@ -289,7 +371,7 @@ impl GlobalContext {
 
         let t_ = s.apply(&t);
 
-        let value = interpreter::Context::new().eval_expr(&expr, &self.value_env);
+        let value = interpreter::Context::new(ti).eval_expr(&expr, &self.value_env);
 
         Ok(Box::new(format!("{:?}, where {:?}\n{}\n", t_, rs, value)))
     }
