@@ -86,6 +86,7 @@ pub enum Expr {
     Lit(Literal),
     App(Box<Expr>, Box<Expr>),
     Let(BindGroup, Box<Expr>),
+    Seq(Vec<Expr>, Box<Expr>),
 }
 
 impl Expr {
@@ -95,6 +96,10 @@ impl Expr {
 
     pub fn let_(bg: BindGroup, e: Expr) -> Expr {
         Expr::Let(bg, Box::new(e))
+    }
+
+    pub fn sequence(stmts: Vec<Expr>, last: Expr) -> Expr {
+        Expr::Seq(stmts, Box::new(last))
     }
 }
 

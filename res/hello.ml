@@ -1,2 +1,6 @@
 
-main () = puts "Hello, world!\n";
+main () = {
+    puts "Hello, ";
+    puts "world!";
+    puts "\n"
+};

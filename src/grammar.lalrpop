@@ -157,6 +157,7 @@ SimpleExpr: ast::Expr = {
     <AnyIdent> => ast::Expr::Var(<>),
     <Literal> => ast::Expr::Lit(<>),
     "(" <Expr> ")",
+    "{" <(<Expr> ";") *> <Expr> "}" => ast::Expr::sequence(<>),
 }
 
 Literal: ast::Literal = {

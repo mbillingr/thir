@@ -130,6 +130,7 @@ pub enum Expr {
     Const(Assump),
     App(Rc<Expr>, Rc<Expr>),
     Let(BindGroup, Rc<Expr>),
+    Sequence(Rc<Vec<Expr>>, Rc<Expr>),
 }
 
 pub fn ti_expr(
@@ -166,6 +167,19 @@ pub fn ti_expr(
             ass_.extend(ass.iter().cloned());
             let (qs, t) = ti_expr(ti, ce, &ass_, e)?;
             ps.extend(qs);
+            (ps, t)
+        }
+
+        Expr::Sequence(stmts, last) => {
+            let (mut ps, t) = ti_expr(ti, ce, ass, last)?;
+
+            let t_unit = Type::t_unit();
+            for x in stmts.iter() {
+                let (ps_, t_) = ti_expr(ti, ce, ass, x)?;
+                ps.extend(ps_);
+                ti.unify(&t_, &t_unit)?;
+            }
+
             (ps, t)
         }
     };

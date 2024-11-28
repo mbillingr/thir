@@ -290,6 +290,12 @@ impl Context {
                 self.exec_bindgroup(bg, &mut local_env);
                 self.eval_expr(body, &local_env)
             }
+            Expr::Sequence(stmts, expr) => {
+                for stmt in stmts.iter() {
+                    self.eval_expr(stmt, env);
+                }
+                self.eval_expr(expr, env)
+            }
         }
     }
 

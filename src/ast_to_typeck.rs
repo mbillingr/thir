@@ -129,6 +129,11 @@ impl GlobalContext {
                 let e = Rc::new(self.build_expr(*e));
                 si::Expr::Let(bg, e)
             }
+            ast::Expr::Seq(stmts, last) => {
+                let stmts = stmts.into_iter().map(|s| self.build_expr(s)).collect();
+                let last = self.build_expr(*last);
+                si::Expr::Sequence(Rc::new(stmts), Rc::new(last))
+            }
         }
     }
 
