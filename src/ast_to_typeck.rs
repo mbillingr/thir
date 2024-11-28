@@ -5,7 +5,7 @@ use crate::predicates::Pred;
 use crate::{
     ast, predicates, qualified, scheme, specific_inference as si, types, GlobalContext, Id,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 pub type TEnv = HashMap<Id, types::Type>;
@@ -25,6 +25,25 @@ impl GlobalContext {
     pub fn build_bindgroup(&mut self, ast::BindGroup(bg): ast::BindGroup) -> si::BindGroup {
         let mut binds = vec![];
 
+        let mut bound_names = HashSet::new();
+        for x in bg
+            .iter()
+            .map(|b| match b {
+                ast::Bind::Declaration(decl) => {
+                    let items: Box<dyn Iterator<Item = &str>> =
+                        Box::new(std::iter::once(decl.0.as_str()));
+                    items
+                }
+                ast::Bind::Implicit(imp) => Box::new(std::iter::once(imp.0.as_str())),
+                ast::Bind::Mutual(mu) => Box::new(mu.iter().map(|impl_| impl_.0.as_str())),
+            })
+            .flatten()
+        {
+            if bound_names.insert(x) == false {
+                panic!("duplicate binding: {}", x);
+            }
+        }
+
         for b in bg {
             match b {
                 ast::Bind::Declaration(decl) => {
@@ -32,7 +51,7 @@ impl GlobalContext {
                 }
                 ast::Bind::Implicit(_) => binds.push(b),
                 ast::Bind::Mutual(_) => binds.push(b),
-            }
+            };
         }
 
         let mut expls = vec![];

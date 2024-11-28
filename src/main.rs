@@ -23,7 +23,7 @@ mod unification;
 
 lalrpop_mod!(grammar);
 
-use crate::assumptions::Assump;
+use crate::assumptions::{find, Assump};
 use crate::ast::{DataType, DefClass, Expr, ImplClass};
 use crate::ast_to_typeck::TEnv;
 use crate::classes::{ClassEnv, EnvTransformer};
@@ -272,6 +272,10 @@ impl GlobalContext {
                 return Err("all interface type variables must appear in method arguments".into());
             }
 
+            if find(&i, &self.assumptions).is_ok() {
+                return Err(format!("name {i} already used"));
+            }
+
             assumptions.push(Assump { i: i.clone(), sc });
         }
 
@@ -332,6 +336,9 @@ impl GlobalContext {
     }
 
     fn define_datatype(&mut self, dt: DataType) -> Result<()> {
+        if self.type_env.contains_key(&dt.typename) {
+            return Err(format!("type {} already defined", dt.typename));
+        }
         let type_arity = dt.genvars.len();
         let kind = Kind::ty_constructor(type_arity);
         let dty = Type::TCon(Tycon(dt.typename.clone(), kind));
@@ -343,6 +350,10 @@ impl GlobalContext {
         let backup = std::mem::replace(&mut self.type_env, method_tenv);
 
         for (i, params) in dt.constructors {
+            if find(&i, &self.assumptions).is_ok() {
+                return Err(format!("name {i} already used"));
+            }
+
             let args: Vec<_> = params.into_iter().map(|p| self.build_type(p)).collect();
 
             // apply the type-constructor
@@ -377,6 +388,13 @@ impl GlobalContext {
     fn define_globals(&mut self, bg: ast::BindGroup) -> Result<()> {
         let prog = self.build_program(vec![bg]);
         let (r, ti) = ti_program(&self.class_env, self.assumptions.clone(), &prog)?;
+
+        for a in &r {
+            if find(&a.i, &self.assumptions).is_ok() {
+                return Err(format!("name {} already used", a.i));
+            }
+        }
+
         self.assumptions.extend(r);
 
         interpreter::Context::new(ti).exec_program(&prog, &mut self.value_env);
