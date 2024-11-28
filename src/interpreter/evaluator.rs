@@ -76,7 +76,6 @@ impl Context {
                 val
             }
             Expr::Lit(l) => self.eval_lit(l),
-            Expr::Const(_) => unimplemented!(),
             Expr::App(rator, rand) => {
                 let rator_ = self.eval_expr(rator, env);
                 let rand_ = self.eval_expr(rand, env);

@@ -30,7 +30,7 @@ fn ti_lit(_ti: &mut TI, l: &Literal) -> (Vec<Pred>, Type) {
         Literal::Char(_) => (vec![], Type::t_char()),
         Literal::Str(_) => (vec![], Type::t_string()),
         Literal::Int(_) => (vec![], Type::t_int()),
-        Literal::Rat(_) => (vec![], Type::t_double()),
+        Literal::Rat(_) => (vec![], Type::t_float()),
     }
 }
 
@@ -129,7 +129,6 @@ fn ti_pats(ti: &mut TI, pats: &[Pat]) -> crate::Result<(Vec<Pred>, Vec<Assump>, 
 pub enum Expr {
     Var(Id),
     Lit(Literal),
-    Const(Assump),
     App(Rc<Expr>, Rc<Expr>),
     Let(BindGroup, Rc<Expr>),
     Sequence(Rc<Vec<Expr>>, Rc<Expr>),
@@ -144,11 +143,6 @@ pub fn ti_expr(
     let (ps, t) = match expr {
         Expr::Var(i) => {
             let sc = find_scheme(i, ass)?;
-            let Qual(ps, t) = ti.fresh_inst(sc);
-            (ps, t)
-        }
-
-        Expr::Const(Assump { sc, .. }) => {
             let Qual(ps, t) = ti.fresh_inst(sc);
             (ps, t)
         }

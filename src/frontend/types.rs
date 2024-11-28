@@ -26,18 +26,8 @@ impl Type {
         Type::TCon(Tycon("Int".into(), Kind::Star))
     }
 
-    /// construct the integer type
-    pub fn t_integer() -> Self {
-        Type::TCon(Tycon("Integer".into(), Kind::Star))
-    }
-
-    /// construct the float type
+    /// construct the floating point type
     pub fn t_float() -> Self {
-        Type::TCon(Tycon("Float".into(), Kind::Star))
-    }
-
-    /// construct the double type
-    pub fn t_double() -> Self {
         Type::TCon(Tycon("Double".into(), Kind::Star))
     }
 
@@ -54,14 +44,6 @@ impl Type {
         ))
     }
 
-    /// construct the 2-tuple type constructor
-    pub fn t_tuple2() -> Self {
-        Type::TCon(Tycon(
-            ",".into(),
-            Kind::kfun(Kind::Star, Kind::kfun(Kind::Star, Kind::Star)),
-        ))
-    }
-
     /// construct a function type
     pub fn func(a: Type, b: Type) -> Type {
         Type::tapp(Type::tapp(Type::t_arrow(), a), b)
@@ -70,11 +52,6 @@ impl Type {
     /// construct a list type
     pub fn list(t: Type) -> Type {
         Type::tapp(Type::t_list(), t)
-    }
-
-    /// construct a pair type
-    pub fn pair(a: Type, b: Type) -> Type {
-        Type::tapp(Type::tapp(Type::t_tuple2(), a), b)
     }
 }
 
@@ -115,7 +92,7 @@ pub fn add_num_classes() -> EnvTransformer {
     et.compose(ET::add_inst(vec![], IsIn("Eq".into(), Type::t_int())))
         .compose(ET::add_inst(vec![], IsIn("Show".into(), Type::t_int())))
         .compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_int())))
-        .compose(ET::add_inst(vec![], IsIn("Eq".into(), Type::t_double())))
-        .compose(ET::add_inst(vec![], IsIn("Show".into(), Type::t_double())))
-        .compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_double())))
+        .compose(ET::add_inst(vec![], IsIn("Eq".into(), Type::t_float())))
+        .compose(ET::add_inst(vec![], IsIn("Show".into(), Type::t_float())))
+        .compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_float())))
 }

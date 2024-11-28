@@ -24,7 +24,7 @@ impl Default for ClassEnv {
     fn default() -> Self {
         ClassEnv {
             classes: Rc::new(|i| Err(format!("class {i} not defined"))?),
-            defaults: list![Type::t_int(), Type::t_double()],
+            defaults: list![Type::t_int(), Type::t_float()],
         }
     }
 }

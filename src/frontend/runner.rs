@@ -49,7 +49,7 @@ impl Runner {
         tenv.insert("()".into(), Type::t_unit());
         tenv.insert("->".into(), Type::t_arrow());
         tenv.insert("Int".into(), Type::t_int());
-        tenv.insert("Double".into(), Type::t_double());
+        tenv.insert("Double".into(), Type::t_float());
         tenv.insert("String".into(), Type::t_string());
         tenv.insert("[]".into(), Type::t_list());
 
@@ -128,7 +128,7 @@ impl Runner {
                 ))
                 .compose(EnvTransformer::add_inst(
                     vec![],
-                    Pred::IsIn("Sub".into(), Type::t_double()),
+                    Pred::IsIn("Sub".into(), Type::t_float()),
                 ))
                 .apply(&self.class_env)
                 .unwrap();
@@ -185,7 +185,7 @@ impl Runner {
                 ))
                 .compose(EnvTransformer::add_inst(
                     vec![],
-                    Pred::IsIn("Zero".into(), Type::t_double()),
+                    Pred::IsIn("Zero".into(), Type::t_float()),
                 ))
                 .apply(&self.class_env)
                 .unwrap();
