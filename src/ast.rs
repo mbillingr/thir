@@ -3,15 +3,6 @@ pub use crate::specific_inference::Literal;
 use crate::Id;
 
 #[derive(Debug)]
-pub enum ReplCmd {
-    ShowTypeEnv,
-    ShowAssumptions,
-    ShowValueEnv,
-    EvalExpr(Expr),
-    TopLevel(TopLevel),
-}
-
-#[derive(Debug)]
 pub enum TopLevel {
     DefClass(DefClass),
     ImplClass(ImplClass),

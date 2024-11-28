@@ -15,6 +15,7 @@ use std::rc::Rc;
 
 #[derive(Debug)]
 pub enum Literal {
+    Unit,
     Int(i64),
     Char(char),
     Rat(f64),
@@ -23,6 +24,7 @@ pub enum Literal {
 
 fn ti_lit(_ti: &mut TI, l: &Literal) -> (Vec<Pred>, Type) {
     match l {
+        Literal::Unit => (vec![], Type::t_unit()),
         Literal::Char(_) => (vec![], Type::t_char()),
         Literal::Str(_) => (vec![], Type::t_string()),
         Literal::Int(_) => (vec![], Type::t_int()),

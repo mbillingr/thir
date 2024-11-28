@@ -20,6 +20,7 @@ pub enum Value {
     Uninitialized,
     Boxed(Rc<RefCell<Self>>),
 
+    Unit,
     I64(i64),
     Char(char),
     F64(f64),
@@ -93,6 +94,14 @@ impl Value {
 
     pub fn primitive(name: &'static str, arity: usize, f: fn(&[Value]) -> Value) -> Self {
         Value::Primitive(Primitive { name, arity, f }, vec![])
+    }
+
+    pub fn is_unit(&self) -> bool {
+        match self {
+            Value::Boxed(bx) => bx.borrow().is_unit(),
+            Value::Unit => true,
+            _ => false,
+        }
     }
 
     pub fn as_int(&self) -> i64 {
@@ -286,6 +295,7 @@ impl Context {
 
     fn eval_lit(&self, lit: &Literal) -> Value {
         match lit {
+            Literal::Unit => Value::boxed(Value::Unit),
             Literal::Int(x) => Value::I64(*x),
             Literal::Char(ch) => Value::Char(*ch),
             Literal::Rat(x) => Value::F64(*x),
@@ -341,6 +351,7 @@ impl Context {
 
     fn match_lit(&self, lit: &Literal, val: &Value) -> bool {
         match lit {
+            Literal::Unit => val.is_unit(),
             Literal::Int(x) => val.as_int() == *x,
             Literal::Char(ch) => val.as_char() == *ch,
             Literal::Rat(x) => val.as_float() == *x,
@@ -428,6 +439,7 @@ impl std::fmt::Display for Value {
         match self {
             Value::Uninitialized => write!(f, "<uninitialized>"),
             Value::Boxed(bx) => write!(f, "@{:?}", bx.borrow()),
+            Value::Unit => write!(f, "()"),
             Value::I64(x) => write!(f, "{}", x),
             Value::Char(ch) => write!(f, "{}", ch),
             Value::F64(x) => write!(f, "{}", x),

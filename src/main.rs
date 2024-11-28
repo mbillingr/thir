@@ -24,7 +24,7 @@ mod unification;
 lalrpop_mod!(grammar);
 
 use crate::assumptions::{find, Assump};
-use crate::ast::{DataType, DefClass, Expr, ImplClass};
+use crate::ast::{DataType, DefClass, ImplClass};
 use crate::ast_to_typeck::TEnv;
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
@@ -37,34 +37,29 @@ use crate::type_inference::TI;
 use crate::types::{Tycon, Type};
 use lalrpop_util::lalrpop_mod;
 use std::collections::HashMap;
-use std::io::{BufRead, Write};
 
 type Result<T> = std::result::Result<T, String>;
 
-fn main() {
+fn main() -> Result<()> {
     let mut ctx = GlobalContext::new();
     ctx.init();
 
-    print!("> ");
-    std::io::stdout().flush().unwrap();
+    let stdin = std::io::read_to_string(std::io::stdin()).map_err(|e| e.to_string())?;
 
-    for line in std::io::stdin().lock().lines() {
-        match rep(&mut ctx, line.unwrap()) {
-            Ok(res) => print!("{}", res.to_string()),
-            Err(err) => println!("Error: {}", err),
-        }
-
-        print!("> ");
-        std::io::stdout().flush().unwrap();
-    }
-}
-
-fn rep(ctx: &mut GlobalContext, line: String) -> Result<Box<dyn ToString>> {
-    let cmd = grammar::ReplParser::new()
-        .parse(&line)
+    let program = grammar::ProgramParser::new()
+        .parse(&stdin)
         .map_err(|e| e.to_string())?;
 
-    ctx.handle_cmd(cmd)
+    for top in program {
+        ctx.exec_toplevel(top)?;
+    }
+
+    ctx.eval_expr(ast::Expr::app(
+        ast::Expr::Var("main".into()),
+        ast::Expr::Lit(ast::Literal::Unit),
+    ))?;
+
+    Ok(())
 }
 
 pub struct GlobalContext {
@@ -230,18 +225,6 @@ impl GlobalContext {
         }
     }
 
-    fn handle_cmd(&mut self, cmd: ast::ReplCmd) -> Result<Box<dyn ToString>> {
-        match cmd {
-            ast::ReplCmd::ShowTypeEnv => Ok(Box::new(format!("{:#?}\n", self.type_env))),
-            ast::ReplCmd::ShowAssumptions => Ok(Box::new(format!("{:#?}\n", self.assumptions))),
-            ast::ReplCmd::ShowValueEnv => Ok(Box::new(format!("{:#?}\n", self.value_env))),
-            ast::ReplCmd::TopLevel(top) => self
-                .exec_toplevel(top)
-                .map(|_| -> Box<dyn ToString> { Box::new("") }),
-            ast::ReplCmd::EvalExpr(expr) => self.eval_expr(expr),
-        }
-    }
-
     fn exec_toplevel(&mut self, top: ast::TopLevel) -> Result<()> {
         match top {
             ast::TopLevel::DefClass(dc) => self.define_class(dc),
@@ -402,7 +385,7 @@ impl GlobalContext {
         Ok(())
     }
 
-    fn eval_expr(&mut self, expr: Expr) -> Result<Box<dyn ToString>> {
+    fn eval_expr(&mut self, expr: ast::Expr) -> Result<Box<dyn ToString>> {
         let expr = self.build_expr(expr);
 
         let mut ti = TI::new();

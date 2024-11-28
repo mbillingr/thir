@@ -16,19 +16,13 @@ ConIdent: crate::Id = <s:r"[A-Z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into();
 
 AnyIdent = { <VarIdent>, <ConIdent> }
 
-pub Repl: ast::ReplCmd = {
-    <Toplevel> => ast::ReplCmd::TopLevel(<>),
-    ":x" <Expr> => ast::ReplCmd::EvalExpr(<>),
-    ":t" => ast::ReplCmd::ShowTypeEnv,
-    ":a" => ast::ReplCmd::ShowAssumptions,
-    ":e" => ast::ReplCmd::ShowValueEnv,
-}
+pub Program = { <Toplevel *> }
 
 pub Toplevel: ast::TopLevel = {
     <DefClass> => ast::TopLevel::DefClass(<>),
     <ImplClass> => ast::TopLevel::ImplClass(<>),
     <DataType> => ast::TopLevel::DataType(<>),
-    <BindGroup> => ast::TopLevel::BindGroup(<>),
+    <Bind> => ast::TopLevel::BindGroup(ast::BindGroup(vec![<>])),
 }
 
 DefClass: ast::DefClass = {
@@ -42,7 +36,7 @@ ImplClass: ast::ImplClass = {
 }
 
 DataType: ast::DataType = {
-    "data" <ConIdent> <SchemeArg *> "=" <PipeList<(<ConIdent> <Types>)>> => ast::DataType::new(<>),
+    "data" <ConIdent> <SchemeArg *> "=" <PipeList<(<ConIdent> <Types>)>> ";" => ast::DataType::new(<>),
 }
 
 BindGroup: ast::BindGroup = {
@@ -165,6 +159,7 @@ SimpleExpr: ast::Expr = {
 }
 
 Literal: ast::Literal = {
+    "()" => ast::Literal::Unit,
     <Int> => ast::Literal::Int(<>),
     <Flt> => ast::Literal::Rat(<>),
     <Char> => ast::Literal::Char(<>),
