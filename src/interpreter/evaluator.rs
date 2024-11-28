@@ -23,8 +23,9 @@ impl Context {
 
     fn exec_bindgroup(&self, BindGroup(expls, implss): &BindGroup, env: &mut Env) {
         for Expl(id, _, alts) in expls {
+            env.insert(id.clone(), Value::boxed(Value::Uninitialized));
             let value = self.eval_alts(alts, env);
-            env.insert(id.clone(), value);
+            env[id].update(value)
         }
 
         for impls in implss {
