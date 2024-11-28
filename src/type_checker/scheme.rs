@@ -42,6 +42,12 @@ impl Scheme {
             Scheme::Forall(_, Qual(_, t)) => t.as_fn().is_none(),
         }
     }
+
+    pub fn arity(&self) -> usize {
+        match self {
+            Scheme::Forall(_, Qual(_, t)) => t.fn_types().0.len(),
+        }
+    }
 }
 
 impl Type {

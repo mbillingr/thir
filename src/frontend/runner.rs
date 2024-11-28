@@ -1,7 +1,7 @@
 use crate::frontend::ast_to_typeck::TEnv;
 use crate::frontend::type_inference::{ti_expr, ti_program, BindGroup, Expl, Program};
-use crate::frontend::types::{add_core_classes, add_num_classes};
 use crate::frontend::{ast, grammar};
+use crate::interpreter;
 use crate::type_checker::assumptions::{find, Assump};
 use crate::type_checker::classes::{ClassEnv, EnvTransformer};
 use crate::type_checker::kinds::Kind;
@@ -11,7 +11,6 @@ use crate::type_checker::scheme::Scheme;
 use crate::type_checker::type_inference::TI;
 use crate::type_checker::types::{Tycon, Type};
 use crate::type_checker::Id;
-use crate::{interpreter, list};
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
@@ -22,7 +21,7 @@ pub struct Runner {
 
     /// could store these directly inside each class, but this is easier for now.
     /// also, i don't think i want `ast::` types inside the "thih" core.
-    pub methods: HashMap<Id, HashMap<Id, (Id, ast::Scheme)>>,
+    pub methods: HashMap<Id, (Id, HashMap<Id, ast::Scheme>)>,
 
     pub type_env: TEnv,
 
@@ -40,8 +39,8 @@ pub struct Runner {
 impl Runner {
     pub fn new() -> Runner {
         let ce = ClassEnv::default();
-        let ce = add_core_classes().apply(&ce).unwrap();
-        let ce = add_num_classes().apply(&ce).unwrap();
+        //let ce = add_core_classes().apply(&ce).unwrap();
+        //let ce = add_num_classes().apply(&ce).unwrap();
 
         let methods = HashMap::default();
 
@@ -49,20 +48,11 @@ impl Runner {
         tenv.insert("()".into(), Type::t_unit());
         tenv.insert("->".into(), Type::t_arrow());
         tenv.insert("Int".into(), Type::t_int());
-        tenv.insert("Double".into(), Type::t_float());
+        tenv.insert("Float".into(), Type::t_float());
         tenv.insert("String".into(), Type::t_string());
         tenv.insert("[]".into(), Type::t_list());
 
-        let assumptions = vec![Assump {
-            i: "show".into(),
-            sc: Scheme::Forall(
-                list![Kind::Star],
-                Qual(
-                    vec![Pred::IsIn("Show".into(), Type::TGen(0))],
-                    Type::func(Type::TGen(0), Type::t_string()),
-                ),
-            ),
-        }];
+        let assumptions = vec![];
 
         let value_env = HashMap::new();
 
@@ -84,138 +74,121 @@ impl Runner {
     pub fn init(&mut self) {
         {
             // Add a primitive function for printing strings
-            let puts_scm =
-                self.build_scheme(grammar::SchemeParser::new().parse("String -> ()").unwrap());
-
-            self.assumptions.push(Assump {
-                i: "puts".into(),
-                sc: puts_scm,
+            self.define_primitive("puts", "String -> ()", |args| {
+                let s = args[0].as_string();
+                print!("{}", s);
+                interpreter::Value::Unit
             });
-
-            self.value_env.insert(
-                "puts".into(),
-                interpreter::Value::primitive("puts", 1, |args| {
-                    let s = args[0].as_string();
-                    print!("{}", s);
-                    interpreter::Value::Unit
-                }),
-            );
 
             // Add a primitive function for reading strings
-            let gets_scm =
-                self.build_scheme(grammar::SchemeParser::new().parse("() -> String").unwrap());
-
-            self.assumptions.push(Assump {
-                i: "gets".into(),
-                sc: gets_scm,
+            self.define_primitive("gets", "() -> String", |_| {
+                std::io::stdout().flush().unwrap();
+                let mut s = String::new();
+                std::io::stdin().read_line(&mut s).unwrap();
+                interpreter::Value::String(s.trim_end_matches('\n').into())
             });
 
-            self.value_env.insert(
-                "gets".into(),
-                interpreter::Value::primitive("gets", 1, |_| {
-                    std::io::stdout().flush().unwrap();
-                    let mut s = String::new();
-                    std::io::stdin().read_line(&mut s).unwrap();
-                    interpreter::Value::String(s.trim_end_matches('\n').into())
-                }),
+            // Add type class for converting values to string
+            self.define_class(
+                grammar::DefClassParser::new()
+                    .parse("interface Show a { show : a -> String; }")
+                    .unwrap(),
+            )
+            .unwrap();
+
+            // Implement Show for all primitives
+            let show_fn = interpreter::Value::primitive("show", 1, |args| {
+                interpreter::Value::String(args[0].to_string().into())
+            });
+            self.primitive_class_impl(
+                "Show",
+                "Int",
+                vec![("show", "Int -> String", show_fn.clone())],
+            );
+            self.primitive_class_impl(
+                "Show",
+                "Float",
+                vec![("show", "Float -> String", show_fn.clone())],
+            );
+            self.primitive_class_impl(
+                "Show",
+                "String",
+                vec![("show", "String -> String", show_fn.clone())],
             );
 
             // Add a type class and primitives for arithmetic subtraction
-            self.class_env = EnvTransformer::add_class("Sub".into(), vec![])
-                .compose(EnvTransformer::add_inst(
-                    vec![],
-                    Pred::IsIn("Sub".into(), Type::t_int()),
-                ))
-                .compose(EnvTransformer::add_inst(
-                    vec![],
-                    Pred::IsIn("Sub".into(), Type::t_float()),
-                ))
-                .apply(&self.class_env)
-                .unwrap();
-
-            let sub_scm = self.build_scheme(
-                grammar::SchemeParser::new()
-                    .parse("forall (a : Sub) => a -> a -> a")
+            self.define_class(
+                grammar::DefClassParser::new()
+                    .parse("interface Sub a { sub : a -> a -> a; }")
                     .unwrap(),
-            );
-            self.assumptions.push(Assump {
-                i: "sub".into(),
-                sc: sub_scm,
-            });
+            )
+            .unwrap();
 
-            let sub_int_scm = grammar::SchemeParser::new()
-                .parse("Int -> Int -> Int")
-                .unwrap();
-            let sub_flt_scm = grammar::SchemeParser::new()
-                .parse("Double -> Double -> Double")
-                .unwrap();
-
-            let mut sub_mth = HashMap::new();
-            sub_mth.insert("sub".into(), ("Int".into(), sub_int_scm.clone()));
-            sub_mth.insert("sub".into(), ("Double".into(), sub_flt_scm.clone()));
-            self.methods.insert("Sub".into(), sub_mth);
-
-            let sub_mth = interpreter::Value::method();
-            sub_mth.add_impl(
-                self.build_scheme(sub_int_scm),
-                interpreter::Value::primitive("i-i", 2, |args| {
-                    let a = args[0].as_int();
-                    let b = args[1].as_int();
-                    interpreter::Value::I64(a - b)
-                }),
-            );
-            sub_mth.add_impl(
-                self.build_scheme(sub_flt_scm),
-                interpreter::Value::primitive("f-f", 2, |args| {
-                    let a = args[0].as_float();
-                    let b = args[1].as_float();
-                    interpreter::Value::F64(a - b)
-                }),
+            self.primitive_class_impl(
+                "Sub",
+                "Int",
+                vec![(
+                    "sub",
+                    "Int -> Int -> Int",
+                    interpreter::Value::primitive("i-i", 2, |args| {
+                        let a = args[0].as_int();
+                        let b = args[1].as_int();
+                        interpreter::Value::I64(a - b)
+                    }),
+                )],
             );
 
-            self.value_env.insert("sub".into(), sub_mth);
+            self.primitive_class_impl(
+                "Sub",
+                "Float",
+                vec![(
+                    "sub",
+                    "Float -> Float -> Float",
+                    interpreter::Value::primitive("f-f", 2, |args| {
+                        let a = args[0].as_float();
+                        let b = args[1].as_float();
+                        interpreter::Value::F64(a - b)
+                    }),
+                )],
+            );
         }
+    }
 
-        {
-            // Add a type class and primitives for zero constants
-            self.class_env = EnvTransformer::add_class("Zero".into(), vec![])
-                .compose(EnvTransformer::add_inst(
-                    vec![],
-                    Pred::IsIn("Zero".into(), Type::t_int()),
-                ))
-                .compose(EnvTransformer::add_inst(
-                    vec![],
-                    Pred::IsIn("Zero".into(), Type::t_float()),
-                ))
-                .apply(&self.class_env)
-                .unwrap();
+    fn primitive_class_impl(
+        &mut self,
+        cls_name: &str,
+        impl_ty: &str,
+        methods: Vec<(&str, &str, interpreter::Value)>,
+    ) {
+        self.class_env = EnvTransformer::add_inst(
+            vec![],
+            Pred::IsIn(cls_name.into(), self.type_env[impl_ty].clone()),
+        )
+        .apply(&self.class_env)
+        .unwrap();
 
-            let zero_scm = self.build_scheme(
-                grammar::SchemeParser::new()
-                    .parse("forall (a : Zero) => a")
-                    .unwrap(),
-            );
-            self.assumptions.push(Assump {
-                i: "zero".into(),
-                sc: zero_scm,
-            });
-
-            let zero_int_scm = grammar::SchemeParser::new().parse("Int").unwrap();
-            let zero_flt_scm = grammar::SchemeParser::new().parse("Double").unwrap();
-
-            let mut zero_mth = HashMap::new();
-            zero_mth.insert("zero".into(), ("Int".into(), zero_int_scm.clone()));
-            zero_mth.insert("zero".into(), ("Double".into(), zero_flt_scm.clone()));
-            self.methods.insert("zero".into(), zero_mth);
-
-            let zero_mth = interpreter::Value::method();
-            zero_mth.add_impl(self.build_scheme(zero_int_scm), interpreter::Value::I64(0));
-            zero_mth.add_impl(
-                self.build_scheme(zero_flt_scm),
-                interpreter::Value::F64(0.0),
-            );
-            self.value_env.insert("zero".into(), zero_mth);
+        for (mth_name, mth_sig, value) in methods {
+            let scm = self.build_scheme(grammar::SchemeParser::new().parse(mth_sig).unwrap());
+            let mth = self.value_env.get(mth_name).unwrap();
+            mth.add_impl(scm, value)
         }
+    }
+
+    fn define_primitive(
+        &mut self,
+        name: &'static str,
+        ty: &str,
+        semantic: fn(&[interpreter::Value]) -> interpreter::Value,
+    ) {
+        let sc = self.build_scheme(grammar::SchemeParser::new().parse(ty).unwrap());
+        let arity = sc.arity();
+
+        self.assumptions.push(Assump { i: name.into(), sc });
+
+        self.value_env.insert(
+            name.into(),
+            interpreter::Value::primitive(name, arity, semantic),
+        );
     }
 
     /// load and run a file relative to the current file.
@@ -249,32 +222,38 @@ impl Runner {
         }
     }
 
-    fn define_class(&mut self, dc: ast::DefClass) -> crate::Result<()> {
-        let et = EnvTransformer::add_class(dc.name.clone(), dc.super_classes);
+    fn define_class(&mut self, class: ast::DefClass) -> crate::Result<()> {
+        let et = EnvTransformer::add_class(class.name.clone(), class.super_classes);
 
         let mut local_tenv = self.type_env.clone();
-        local_tenv.insert(dc.varname.clone(), Type::TGen(0));
+        local_tenv.insert(class.varname.clone(), Type::TGen(0));
         let mut assumptions = vec![];
-        for (i, mut sc) in dc.methods {
+        for (method_name, mut sc) in class.methods {
             self.methods
-                .entry(dc.name.clone())
-                .or_insert(HashMap::new())
-                .insert(i.clone(), (dc.varname.clone(), sc.clone()));
+                .entry(class.name.clone())
+                .or_insert((class.varname.clone(), HashMap::new()))
+                .1
+                .insert(method_name.clone(), sc.clone());
 
             // insert the "self" type as the first generic
-            sc.genvars
-                .insert(0, (dc.varname.clone(), Kind::Star, vec![dc.name.clone()]));
+            sc.genvars.insert(
+                0,
+                (class.varname.clone(), Kind::Star, vec![class.name.clone()]),
+            );
             let sc = self.build_scheme(sc);
 
             if sc.is_constant() {
                 return Err("all interface type variables must appear in method arguments".into());
             }
 
-            if find(&i, &self.assumptions).is_ok() {
-                return Err(format!("name {i} already used"));
+            if find(&method_name, &self.assumptions).is_ok() {
+                return Err(format!("name {method_name} already used"));
             }
 
-            assumptions.push(Assump { i: i.clone(), sc });
+            assumptions.push(Assump {
+                i: method_name.clone(),
+                sc,
+            });
         }
 
         self.class_env = et.apply(&self.class_env)?;
@@ -288,39 +267,42 @@ impl Runner {
     }
 
     fn implement_class(&mut self, ic: ast::ImplClass) -> crate::Result<()> {
-        let mut required_methods = self.methods.get(&ic.cls).cloned().unwrap_or(HashMap::new());
-
         let ty = self
             .type_env
             .get(&ic.ty)
             .ok_or_else(|| format!("unknown type: {}", ic.ty))?
             .clone();
-        let et = EnvTransformer::add_inst(vec![], Pred::IsIn(ic.cls, ty.clone()));
-        let class_env = et.apply(&self.class_env)?;
 
         let mut scenv = self.type_env.clone();
 
         let mut expls = vec![];
-        for mi in ic.methods {
-            let name = mi.0;
-            let (var, sc) = required_methods
-                .remove(&name)
-                .ok_or_else(|| format!("unexpected method: {name}"))?;
 
-            scenv.insert(var, ty.clone()); // actually, var is the same for every method
-            let sc_ = self.with_tyenv(scenv.clone(), |ctx| ctx.build_scheme(sc));
+        if let Some((var, mut required_methods)) = self.methods.get(&ic.cls).cloned() {
+            scenv.insert(var, ty.clone());
 
-            let alts = self.build_alts(mi.1);
+            for mi in ic.methods {
+                let name = mi.0;
+                let sc = required_methods
+                    .remove(&name)
+                    .ok_or_else(|| format!("unexpected method: {name}"))?;
 
-            expls.push(Expl(name, sc_, alts));
+                let sc_ = self.with_tyenv(scenv.clone(), |ctx| ctx.build_scheme(sc));
+
+                let alts = self.build_alts(mi.1);
+
+                expls.push(Expl(name, sc_, alts));
+            }
+
+            if !required_methods.is_empty() {
+                return Err(format!("missing method impls: {:?}", required_methods));
+            }
         }
+
+        let et = EnvTransformer::add_inst(vec![], Pred::IsIn(ic.cls, ty));
+        let class_env = et.apply(&self.class_env)?;
 
         let mut prog = Program(vec![BindGroup(expls, vec![])]);
         let (_, ti) = ti_program(&class_env, self.assumptions.clone(), &prog)?;
-
-        if !required_methods.is_empty() {
-            return Err(format!("missing method impls: {:?}", required_methods));
-        }
 
         self.class_env = class_env;
 

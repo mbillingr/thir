@@ -29,7 +29,7 @@ Include = {
     "include" <String>,
 }
 
-DefClass: ast::DefClass = {
+pub DefClass: ast::DefClass = {
     "interface" <ConIdent>     <AnyIdent> ":" <ConIdent *>     "{" <(<VarIdent> ":" <Scheme> ";") *> "}" => ast::DefClass::new(<>),
     "interface" <ConIdent> "(" <AnyIdent> ":" <ConIdent *> ")" "{" <(<VarIdent> ":" <Scheme>  ";") *> "}" => ast::DefClass::new(<>),
     "interface" <c:ConIdent> <i:AnyIdent> "{" <ms:(<VarIdent> ":" <Scheme> ";") *> "}" => ast::DefClass::new(c, i, vec![], ms),

@@ -15,6 +15,7 @@ type Inst = Qual<Pred>;
 
 /// The class environment captures information about defined classes and instances
 /// in a given program.
+#[derive(Clone)]
 pub struct ClassEnv {
     classes: Rc<dyn Fn(&Id) -> crate::Result<Class>>,
     defaults: List<Type>,
