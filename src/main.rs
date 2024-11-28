@@ -253,10 +253,10 @@ impl GlobalContext {
 
     fn define_class(&mut self, dc: DefClass) -> Result<()> {
         let et = EnvTransformer::add_class(dc.name.clone(), dc.super_classes);
-        self.class_env = et.apply(&self.class_env)?;
 
         let mut local_tenv = self.type_env.clone();
         local_tenv.insert(dc.varname.clone(), Type::TGen(0));
+        let mut assumptions = vec![];
         for (i, mut sc) in dc.methods {
             self.methods
                 .entry(dc.name.clone())
@@ -267,10 +267,21 @@ impl GlobalContext {
             sc.genvars
                 .insert(0, (dc.varname.clone(), Kind::Star, vec![dc.name.clone()]));
             let sc = self.build_scheme(sc);
-            self.assumptions.push(Assump { i: i.clone(), sc });
 
-            self.value_env.insert(i, interpreter::Value::method());
+            if sc.is_constant() {
+                return Err("all interface type variables must appear in method arguments".into());
+            }
+
+            assumptions.push(Assump { i: i.clone(), sc });
         }
+
+        self.class_env = et.apply(&self.class_env)?;
+        for a in assumptions {
+            self.value_env
+                .insert(a.i.clone(), interpreter::Value::method());
+            self.assumptions.push(a);
+        }
+
         Ok(())
     }
 

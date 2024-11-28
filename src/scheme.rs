@@ -36,6 +36,12 @@ impl Scheme {
         );
         Scheme::Forall(ks, s.apply(qt))
     }
+
+    pub fn is_constant(&self) -> bool {
+        match self {
+            Scheme::Forall(_, Qual(_, t)) => t.as_fn().is_none(),
+        }
+    }
 }
 
 impl Type {
