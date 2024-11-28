@@ -30,7 +30,6 @@ pub fn scheme_matches(
             }
             Type::TApp(_) => todo!(),
             Type::TGen(_) => {}
-            Type::Unknown => unreachable!(),
         }
     }
 
