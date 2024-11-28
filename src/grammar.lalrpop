@@ -7,9 +7,14 @@ grammar;
 
 Int: i64 = <s:r"[0-9]+"> => i64::from_str(s).unwrap();
 Flt: f64 = <s:r"[0-9]+\.[0-9]+"> => f64::from_str(s).unwrap();
-Ident: crate::Id = <s:r"[a-zA-Z_&=!#><?^*/+\-][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.to_string();
+//Ident: crate::Id = <s:r"[a-zA-Z_&=!#><?^*/+\-][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.to_string();
 String: Rc<str> = <s:r#""[^"]*""#> => s[1..s.len()-1].to_string().into();
 Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
+
+VarIdent: crate::Id = <s:r"[a-z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into();
+ConIdent: crate::Id = <s:r"[A-Z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into();
+
+AnyIdent = { <VarIdent>, <ConIdent> }
 
 pub Repl: ast::ReplCmd = {
     <Toplevel> => ast::ReplCmd::TopLevel(<>),
@@ -27,17 +32,17 @@ pub Toplevel: ast::TopLevel = {
 }
 
 DefClass: ast::DefClass = {
-    "interface" <Ident>     <Ident> ":" <Ident *>     "{" <(<Ident> ":" <Scheme> ";") *> "}" => ast::DefClass::new(<>),
-    "interface" <Ident> "(" <Ident> ":" <Ident *> ")" "{" <(<Ident> ":" <Scheme>  ";") *> "}" => ast::DefClass::new(<>),
-    "interface" <c:Ident> <i:Ident> "{" <ms:(<Ident> ":" <Scheme> ";") *> "}" => ast::DefClass::new(c, i, vec![], ms),
+    "interface" <ConIdent>     <AnyIdent> ":" <ConIdent *>     "{" <(<VarIdent> ":" <Scheme> ";") *> "}" => ast::DefClass::new(<>),
+    "interface" <ConIdent> "(" <AnyIdent> ":" <ConIdent *> ")" "{" <(<VarIdent> ":" <Scheme>  ";") *> "}" => ast::DefClass::new(<>),
+    "interface" <c:ConIdent> <i:AnyIdent> "{" <ms:(<VarIdent> ":" <Scheme> ";") *> "}" => ast::DefClass::new(c, i, vec![], ms),
  }
 
 ImplClass: ast::ImplClass = {
-    "impl" <Ident> "for" <Ident> "{" <(<Impl> ";") *> "}" => ast::ImplClass::new(<>),
+    "impl" <ConIdent> "for" <ConIdent> "{" <(<Impl> ";") *> "}" => ast::ImplClass::new(<>),
 }
 
 DataType: ast::DataType = {
-    "data" <Ident> <SchemeArg *> "=" <PipeList<(<Ident> <Types>)>> => ast::DataType::new(<>),
+    "data" <ConIdent> <SchemeArg *> "=" <PipeList<(<ConIdent> <Types>)>> => ast::DataType::new(<>),
 }
 
 BindGroup: ast::BindGroup = {
@@ -61,7 +66,7 @@ MutualBind: ast::Bind = {
 }
 
 Decl: ast::Decl = {
-    <Ident> ":" <Scheme> => ast::Decl(<>),
+    <VarIdent> ":" <Scheme> => ast::Decl(<>),
 }
 
 Scheme: ast::Scheme = {
@@ -71,14 +76,14 @@ Scheme: ast::Scheme = {
 }
 
 SchemeArg: (crate::Id, kinds::Kind, Vec<crate::Id>) = {
-    "(" <Ident> ":" <Kind> <Ident *> ")",
+    "(" <AnyIdent> ":" <Kind> <ConIdent *> ")",
 
-    "(" <Ident> ":" <Ident *> ")" => {
+    "(" <AnyIdent> ":" <ConIdent *> ")" => {
         let (id, preds) = (<>);
         (id, kinds::Kind::Star, preds)
     },
 
-    <Ident> => (<>, kinds::Kind::Star, vec![]),
+    <AnyIdent> => (<>, kinds::Kind::Star, vec![]),
 }
 
 Kind: kinds::Kind = {
@@ -110,14 +115,14 @@ TypeCall: ast::Type = {
 }
 
 SimpleType: ast::Type = {
-    <Ident> => ast::Type::Named(<>),
+    <AnyIdent> => ast::Type::Named(<>),
     "[" <Type> "]" => ast::Type::list(<>),
     "(" <Type> ")",
 }
 
 
 Impl: ast::Impl = {
-    <Ident> <Alts> => ast::Impl(<>),
+    <VarIdent> <Alts> => ast::Impl(<>),
 }
 
 Alts: Vec<ast::Alt> = {
@@ -134,12 +139,13 @@ Alt: ast::Alt = {
 }
 
 Pat: ast::Pat = {
-    <Ident> => ast::Pat::PVar(<>),
+    <VarIdent> => ast::Pat::PVar(<>),
     "_" => ast::Pat::PWildcard,
-    "(" <Pat> ")" "as" <Ident> => ast::Pat::pas(<>),
+    <Pat> "as" <VarIdent> => ast::Pat::pas(<>),
     <Literal> => ast::Pat::PLit(<>),
-    <Ident> "+" <Int> => ast::Pat::PNpk(<>),
-    "(" "!" <Ident> <Pat*> ")" => ast::Pat::PCon(<>),
+    <VarIdent> "+" <Int> => ast::Pat::PNpk(<>),
+    "(" <ConIdent> <Pat*> ")" => ast::Pat::PCon(<>),
+    "(" <Pat> ")",
 }
 
 Expr: ast::Expr = {
@@ -153,7 +159,7 @@ CallExpr: ast::Expr = {
 }
 
 SimpleExpr: ast::Expr = {
-    <Ident> => ast::Expr::Var(<>),
+    <AnyIdent> => ast::Expr::Var(<>),
     <Literal> => ast::Expr::Lit(<>),
     "(" <Expr> ")",
 }
