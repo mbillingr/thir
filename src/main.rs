@@ -39,6 +39,7 @@ use lalrpop_util::lalrpop_mod;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
+use std::io::Write;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -151,6 +152,25 @@ impl GlobalContext {
                     let s = args[0].as_string();
                     print!("{}", s);
                     interpreter::Value::Unit
+                }),
+            );
+
+            // Add a primitive function for reading strings
+            let gets_scm =
+                self.build_scheme(grammar::SchemeParser::new().parse("() -> String").unwrap());
+
+            self.assumptions.push(Assump {
+                i: "gets".into(),
+                sc: gets_scm,
+            });
+
+            self.value_env.insert(
+                "gets".into(),
+                interpreter::Value::primitive("gets", 1, |_| {
+                    std::io::stdout().flush().unwrap();
+                    let mut s = String::new();
+                    std::io::stdin().read_line(&mut s).unwrap();
+                    interpreter::Value::String(s.trim_end_matches('\n').into())
                 }),
             );
 
