@@ -71,7 +71,7 @@ impl Context {
                                 return value.clone();
                             }
                         }
-                        println!("WARNING: no method matched for {:?}", t);
+                        //println!("WARNING: no method matched for {:?}", t);
                     }
                 }
                 val

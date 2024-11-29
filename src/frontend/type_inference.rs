@@ -265,6 +265,7 @@ fn ti_expl(
     let (ds, rs) = split(ce, &fs, &gs, &ps_)?;
 
     if sc != &sc_ {
+        // todo: I think this could be a warning
         Err(format!("signature too general {sc:?} != {sc_:?}"))?;
     }
 
