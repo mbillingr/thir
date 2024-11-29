@@ -36,6 +36,51 @@ pub struct Runner {
     pub value_env: interpreter::Env,
 }
 
+macro_rules! define_arithmetic_operator {
+    ($ctx:expr, $cls:literal, $op:literal, $rustop:tt) => {
+        $ctx.define_class(
+            grammar::DefClassParser::new()
+                .parse(concat!(
+                    "interface ",
+                    $cls,
+                    " a { (",
+                    $op,
+                    ") : a -> a -> a; }"
+                ))
+                .unwrap(),
+        )
+        .unwrap();
+
+        $ctx.primitive_class_impl(
+            $cls,
+            "Int",
+            vec![(
+                $op,
+                "Int -> Int -> Int",
+                interpreter::Value::primitive(concat!("i", $op, "i"), 2, |args| {
+                    let a = args[0].as_int();
+                    let b = args[1].as_int();
+                    interpreter::Value::I64(a $rustop b)
+                }),
+            )],
+        );
+
+        $ctx.primitive_class_impl(
+            $cls,
+            "Float",
+            vec![(
+                $op,
+                "Float -> Float -> Float",
+                interpreter::Value::primitive(concat!("f", $op, "f"), 2, |args| {
+                    let a = args[0].as_float();
+                    let b = args[1].as_float();
+                    interpreter::Value::F64(a $rustop b)
+                }),
+            )],
+        );
+    };
+}
+
 impl Runner {
     pub fn new() -> Runner {
         let ce = ClassEnv::default();
@@ -116,41 +161,10 @@ impl Runner {
                 vec![("show", "String -> String", show_fn.clone())],
             );
 
-            // Add a type class and primitives for arithmetic subtraction
-            self.define_class(
-                grammar::DefClassParser::new()
-                    .parse("interface Sub a { (-) : a -> a -> a; }")
-                    .unwrap(),
-            )
-            .unwrap();
-
-            self.primitive_class_impl(
-                "Sub",
-                "Int",
-                vec![(
-                    "-",
-                    "Int -> Int -> Int",
-                    interpreter::Value::primitive("i-i", 2, |args| {
-                        let a = args[0].as_int();
-                        let b = args[1].as_int();
-                        interpreter::Value::I64(a - b)
-                    }),
-                )],
-            );
-
-            self.primitive_class_impl(
-                "Sub",
-                "Float",
-                vec![(
-                    "-",
-                    "Float -> Float -> Float",
-                    interpreter::Value::primitive("f-f", 2, |args| {
-                        let a = args[0].as_float();
-                        let b = args[1].as_float();
-                        interpreter::Value::F64(a - b)
-                    }),
-                )],
-            );
+            define_arithmetic_operator!(self, "Add", "+", +);
+            define_arithmetic_operator!(self, "Sub", "-", -);
+            define_arithmetic_operator!(self, "Mul", "*", *);
+            define_arithmetic_operator!(self, "Div", "/", /);
         }
     }
 
