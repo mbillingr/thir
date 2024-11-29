@@ -137,7 +137,7 @@ impl Context {
             }
 
             Pat::PCon(Assump { i, .. }, pats) => {
-                let (tag, fields) = val.as_constructor();
+                let (tag, fields) = val.as_constructor().expect("expected constructor");
                 if &*tag != i {
                     return false;
                 }

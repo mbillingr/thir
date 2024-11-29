@@ -62,11 +62,11 @@ impl Value {
         Value::Constructor(ty.into(), tag.into(), vec![])
     }
 
-    pub fn as_constructor(&self) -> (Rc<str>, Vec<Value>) {
+    pub fn as_constructor(&self) -> Option<(Rc<str>, Vec<Value>)> {
         match self {
             Value::Boxed(bx) => bx.borrow().as_constructor(),
-            Value::Constructor(_, tag, fields) => (tag.clone(), fields.clone()),
-            _ => panic!("expected constructor"),
+            Value::Constructor(_, tag, fields) => Some((tag.clone(), fields.clone())),
+            _ => None,
         }
     }
 

@@ -28,7 +28,12 @@ pub fn scheme_matches(
                     return false;
                 }
             }
-            Type::TApp(_) => todo!(),
+            Type::TApp(_) => {
+                if v.as_constructor().is_none() {
+                    return false;
+                }
+                todo!("{t:?} =?= {v:?}")
+            }
             Type::TGen(_) => {}
         }
     }
