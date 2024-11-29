@@ -199,7 +199,13 @@ impl Runner {
                 std::io::stdout().flush().unwrap();
                 let mut s = String::new();
                 std::io::stdin().read_line(&mut s).unwrap();
-                interpreter::Value::String(s.trim_end_matches('\n').into())
+                interpreter::Value::String(s.into())
+            });
+
+            // Add a primitive function for trimming strings
+            self.define_primitive("trim", "String -> String", |args| {
+                let s = args[0].as_string().trim().to_string();
+                interpreter::Value::String(s.into())
             });
 
             // Add type class for converting values to string

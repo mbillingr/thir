@@ -1,7 +1,7 @@
 
 main () = {
     puts "What's your name? ";
-    let name = gets () in {
+    let name = trim (gets ()) in {
         puts "Hello, ";
         puts name;
         puts "!\n"
