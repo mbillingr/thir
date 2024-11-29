@@ -36,48 +36,116 @@ pub struct Runner {
     pub value_env: interpreter::Env,
 }
 
-macro_rules! define_arithmetic_operator {
-    ($ctx:expr, $cls:literal, $op:literal, $rustop:tt) => {
+macro_rules! super_classes {
+    () => {""};
+    ($($cls:literal),*) => {
+        concat!(": ", $($cls)*)
+    };
+}
+
+macro_rules! define_class {
+    ($ctx:expr, $cls:literal, $($sup:literal)*, $(, $op:literal,  $sig:literal)*) => {
         $ctx.define_class(
             grammar::DefClassParser::new()
                 .parse(concat!(
                     "interface ",
                     $cls,
-                    " a { (",
-                    $op,
-                    ") : a -> a -> a; }"
+                    " a ", super_classes!($($sup)*), " { ",
+                    $("(", $op, ") : ", $sig, ";",)*
+                    " }"
                 ))
                 .unwrap(),
         )
         .unwrap();
+    }
+}
 
+macro_rules! type_from_value {
+    (Bool) => {
+        interpreter::Value::as_bool
+    };
+
+    (Int) => {
+        interpreter::Value::as_int
+    };
+
+    (Float) => {
+        interpreter::Value::as_float
+    };
+}
+
+macro_rules! type_to_value {
+    (Bool) => {
+        interpreter::Value::Bool
+    };
+
+    (Int) => {
+        interpreter::Value::I64
+    };
+
+    (Float) => {
+        interpreter::Value::F64
+    };
+}
+
+macro_rules! define_arithmetic_impl {
+    ($ctx:expr, $cls:literal, $ty:tt $(, $op:literal, $rustop:tt)*) => {
         $ctx.primitive_class_impl(
             $cls,
-            "Int",
-            vec![(
+            stringify!($ty),
+            vec![$((
                 $op,
-                "Int -> Int -> Int",
-                interpreter::Value::primitive(concat!("i", $op, "i"), 2, |args| {
-                    let a = args[0].as_int();
-                    let b = args[1].as_int();
-                    interpreter::Value::I64(a $rustop b)
+                concat!(stringify!($ty), " -> ", stringify!($ty), " -> ", stringify!($ty)),
+                interpreter::Value::primitive(concat!(stringify!($ty), $op, stringify!($ty)), 2, |args| {
+                    let a = type_from_value!($ty)(&args[0]);
+                    let b = type_from_value!($ty)(&args[1]);
+                    type_to_value!($ty)(a $rustop b)
                 }),
-            )],
+            )),*],
         );
+    }
+}
 
+macro_rules! define_arithmetic_operator {
+    ($ctx:expr, $cls:literal <: $($sup:literal)* $(, $op:literal, $rustop:tt)*) => {
+        define_class!($ctx, $cls, $($sup)*, $(, $op, "a -> a -> a")*);
+        define_arithmetic_impl!($ctx, $cls, Int $(, $op, $rustop)*);
+        define_arithmetic_impl!($ctx, $cls, Float $(, $op, $rustop)*);
+    };
+
+    ($ctx:expr, $cls:literal, $($rest:tt)*) => {
+        define_arithmetic_operator!($ctx, $cls <:, $($rest)*)
+    };
+}
+
+macro_rules! define_comparison_impl {
+    ($ctx:expr, $cls:literal, $ty:tt $(, $op:literal, $rustop:tt)*) => {
         $ctx.primitive_class_impl(
             $cls,
-            "Float",
-            vec![(
+            stringify!($ty),
+            vec![$((
                 $op,
-                "Float -> Float -> Float",
-                interpreter::Value::primitive(concat!("f", $op, "f"), 2, |args| {
-                    let a = args[0].as_float();
-                    let b = args[1].as_float();
-                    interpreter::Value::F64(a $rustop b)
+                concat!(stringify!($ty), " -> ", stringify!($ty), " -> Bool"),
+                interpreter::Value::primitive(concat!(stringify!($ty), $op, stringify!($ty)), 2, |args| {
+                    let a = type_from_value!($ty)(&args[0]);
+                    let b = type_from_value!($ty)(&args[1]);
+                    type_to_value!(Bool)(a $rustop b)
                 }),
-            )],
+            )),*],
         );
+    }
+}
+
+macro_rules! define_comparison_operator {
+    ($ctx:expr, $cls:literal <: $($sup:literal)* $(, $op:literal, $rustop:tt)*) => {
+        define_class!($ctx, $cls, $($sup)*, $(, $op, "a -> a -> Bool")*);
+        define_comparison_impl!($ctx, $cls, Bool $(, $op, $rustop)*);
+        define_comparison_impl!($ctx, $cls, Int $(, $op, $rustop)*);
+        define_comparison_impl!($ctx, $cls, Float $(, $op, $rustop)*);
+    };
+
+    ($ctx:expr, $cls:literal, $($rest:tt)*) => {
+        define_comparison_operator!($ctx, $cls <:, $($rest)*)
     };
 }
 
@@ -171,6 +239,9 @@ impl Runner {
             define_arithmetic_operator!(self, "Sub", "-", -);
             define_arithmetic_operator!(self, "Mul", "*", *);
             define_arithmetic_operator!(self, "Div", "/", /);
+
+            define_comparison_operator!(self, "Cmp", "==", ==, "!=", !=);
+            define_comparison_operator!(self, "Ord" <: "Cmp", "<", <, ">", >, "<=", <=, ">=", >=);
         }
     }
 

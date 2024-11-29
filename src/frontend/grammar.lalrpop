@@ -18,7 +18,7 @@ VarIdent: Id = {
 }
 
 OpIdent: Id = {
-    <s:r"[\-+*/:.@=]+"> => s.into(),
+    <s:r"[\-+*/:.@=!><]+"> => s.into(),
 
     // all operators that occur as literals in the grammar need to be listed explicitly, otherwise they won't be recognized by the parser.
     "+" => <>.into(),
