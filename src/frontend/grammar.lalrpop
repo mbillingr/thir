@@ -10,8 +10,13 @@ Flt: f64 = <s:r"[0-9]+\.[0-9]+"> => f64::from_str(s).unwrap();
 String: Rc<str> = <s:r#""[^"]*""#> => ast::unescape(&s[1..s.len()-1]);
 Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
 
-VarIdent: Id = <s:r"[a-z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into();
 ConIdent: Id = <s:r"[A-Z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into();
+
+VarIdent: Id = {
+    <s:r"[a-z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into(),
+    "(" <OpIdent> ")",
+}
+
 OpIdent: Id = {
     <s:r"[\-+*/:.@=]+"> => s.into(),
 
@@ -158,14 +163,24 @@ Pat: ast::Pat = {
 }
 
 Expr: ast::Expr = {
-    <InfixToken *> => ast::Expr::Infix(<>),
+    InfixExpr => ast::Expr::Infix(<>),
     "let" <BindGroup> "in" <Expr> => ast::Expr::let_(<>),
     "fun" <Alt> => ast::Expr::Lambda(Box::new(<>)),
 }
 
-InfixToken: ast::InfixToken = {
-    <OpIdent> => ast::InfixToken::Op(<>),
-    <SimpleExpr> => ast::InfixToken::Expr(<>),
+InfixExpr: Vec<ast::InfixToken> = {
+    <SimpleExpr> => vec![ast::InfixToken::Expr(<>)],
+    <InfixExpr> <SimpleExpr> => {
+        let (mut lhs, rhs) = (<>);
+        lhs.push(ast::InfixToken::Expr(rhs));
+        lhs
+    },
+    <InfixExpr> <OpIdent> <SimpleExpr> => {
+        let (mut lhs, op, rhs) = (<>);
+        lhs.push(ast::InfixToken::Op(op));
+        lhs.push(ast::InfixToken::Expr(rhs));
+        lhs
+    },
 }
 
 SimpleExpr: ast::Expr = {

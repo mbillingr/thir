@@ -119,7 +119,7 @@ impl Runner {
             // Add a type class and primitives for arithmetic subtraction
             self.define_class(
                 grammar::DefClassParser::new()
-                    .parse("interface Sub a { sub : a -> a -> a; }")
+                    .parse("interface Sub a { (-) : a -> a -> a; }")
                     .unwrap(),
             )
             .unwrap();
@@ -128,7 +128,7 @@ impl Runner {
                 "Sub",
                 "Int",
                 vec![(
-                    "sub",
+                    "-",
                     "Int -> Int -> Int",
                     interpreter::Value::primitive("i-i", 2, |args| {
                         let a = args[0].as_int();
@@ -142,7 +142,7 @@ impl Runner {
                 "Sub",
                 "Float",
                 vec![(
-                    "sub",
+                    "-",
                     "Float -> Float -> Float",
                     interpreter::Value::primitive("f-f", 2, |args| {
                         let a = args[0].as_float();
