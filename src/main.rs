@@ -9,7 +9,7 @@ mod utils;
 use frontend::ast;
 use frontend::Runner;
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 type Result<T> = std::result::Result<T, String>;
 
 fn main() -> Result<()> {
@@ -20,6 +20,12 @@ fn main() -> Result<()> {
 
     let mut ctx = Runner::new();
     ctx.init();
+
+    // try to load the prelude/prelude.ml relative to the current working directory
+    match ctx.run_file("prelude.ml", Path::new("prelude")) {
+        Err(e) if e.contains("No such file or directory") => {}
+        other => other?,
+    }
 
     ctx.run_file(&args[1], &PathBuf::from("."))?;
 
