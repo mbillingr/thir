@@ -90,6 +90,8 @@ pub enum Expr {
     App(Box<Expr>, Box<Expr>),
     Let(BindGroup, Box<Expr>),
     Seq(Vec<Expr>, Box<Expr>),
+
+    Lambda(Box<Alt>),
 }
 
 impl Expr {

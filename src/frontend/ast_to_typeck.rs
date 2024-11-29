@@ -136,6 +136,20 @@ impl Runner {
                 let last = self.build_expr(*last);
                 si::Expr::Sequence(Rc::new(stmts), Rc::new(last))
             }
+
+            ast::Expr::Lambda(alt) => {
+                let alt = self.build_alt(*alt);
+
+                let name = unique_id("λ");
+
+                si::Expr::Let(
+                    si::BindGroup(
+                        vec![],
+                        vec![vec![si::Impl(name.clone(), Rc::new(vec![alt]))]],
+                    ),
+                    Rc::new(si::Expr::Var(name)),
+                )
+            }
         }
     }
 
@@ -190,3 +204,13 @@ impl Runner {
         (kinds, preds)
     }
 }
+
+fn unique_id(prefix: &str) -> Id {
+    format!(
+        "{}{}",
+        prefix,
+        UNIQUE_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    )
+}
+
+const UNIQUE_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);

@@ -150,6 +150,7 @@ Pat: ast::Pat = {
 Expr: ast::Expr = {
     <CallExpr>,
     "let" <BindGroup> "in" <Expr> => ast::Expr::let_(<>),
+    "fun" <Alt> => ast::Expr::Lambda(Box::new(<>)),
 }
 
 CallExpr: ast::Expr = {
