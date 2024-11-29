@@ -230,7 +230,10 @@ impl Runner {
                 InfixToken::Op(op) => {
                     while let Some(top) = stack.last() {
                         if let InfixToken::Op(top_op) = top {
-                            if self.precedence(&op) <= self.precedence(&top_op) {
+                            let top_pred = self.precedence(top_op);
+                            let pred = self.precedence(&op);
+                            let la = self.left_associative(&op);
+                            if pred <= top_pred && la || pred < top_pred && !la {
                                 output.push(stack.pop().unwrap());
                             } else {
                                 break;
@@ -278,6 +281,7 @@ impl Runner {
 
     fn precedence(&self, op: &str) -> i32 {
         match op {
+            "::" => 8,
             "*" | "/" => 7,
             "+" | "-" => 6,
             "==" | "!=" | "<" | ">" | "<=" | ">=" => 4,
@@ -285,6 +289,16 @@ impl Runner {
             "||" => 2,
             "" => 0, // function call
             _ => 1,
+        }
+    }
+
+    fn left_associative(&self, op: &str) -> bool {
+        match op {
+            "*" | "/" | "+" | "-" | "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||" | "" => {
+                true
+            }
+            "::" => false,
+            _ => true,
         }
     }
 }
