@@ -5,6 +5,13 @@ use crate::frontend::ast;
 
 grammar;
 
+match {
+} else {
+    r"\s*" => { },  // skip whitespace
+    r"//[^\n\r]*[\n\r]" => { }, // skip line comments
+    _
+}
+
 Int: i64 = <s:r"[0-9]+"> => i64::from_str(s).unwrap();
 Flt: f64 = <s:r"[0-9]+\.[0-9]+"> => f64::from_str(s).unwrap();
 String: Rc<str> = <s:r#""[^"]*""#> => ast::unescape(&s[1..s.len()-1]);
