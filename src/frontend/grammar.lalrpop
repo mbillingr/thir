@@ -12,6 +12,16 @@ Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
 
 VarIdent: Id = <s:r"[a-z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into();
 ConIdent: Id = <s:r"[A-Z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into();
+OpIdent: Id = {
+    <s:r"[\-+*/:.@=]+"> => s.into(),
+
+    // all operators that occur as literals in the grammar need to be listed explicitly, otherwise they won't be recognized by the parser.
+    "+" => <>.into(),
+    "-" => <>.into(),
+    "*" => <>.into(),
+    "/" => <>.into(),
+    "=" => <>.into(),
+}
 
 AnyIdent = { <VarIdent>, <ConIdent> }
 
@@ -148,14 +158,14 @@ Pat: ast::Pat = {
 }
 
 Expr: ast::Expr = {
-    <CallExpr>,
+    <InfixToken *> => ast::Expr::Infix(<>),
     "let" <BindGroup> "in" <Expr> => ast::Expr::let_(<>),
     "fun" <Alt> => ast::Expr::Lambda(Box::new(<>)),
 }
 
-CallExpr: ast::Expr = {
-    <SimpleExpr>,
-    <CallExpr> <SimpleExpr> => ast::Expr::app(<>),
+InfixToken: ast::InfixToken = {
+    <OpIdent> => ast::InfixToken::Op(<>),
+    <SimpleExpr> => ast::InfixToken::Expr(<>),
 }
 
 SimpleExpr: ast::Expr = {

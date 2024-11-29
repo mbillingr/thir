@@ -91,7 +91,15 @@ pub enum Expr {
     Let(BindGroup, Box<Expr>),
     Seq(Vec<Expr>, Box<Expr>),
 
+    Infix(Vec<InfixToken>),
+
     Lambda(Box<Alt>),
+}
+
+#[derive(Debug)]
+pub enum InfixToken {
+    Expr(Expr),
+    Op(Id),
 }
 
 impl Expr {

@@ -1,5 +1,6 @@
 //! Transform the parsed AST into the representation used by the type checker.
 
+use crate::frontend::ast::InfixToken;
 use crate::frontend::runner::Runner;
 use crate::frontend::{ast, type_inference as si};
 use crate::type_checker::assumptions::find;
@@ -119,6 +120,7 @@ impl Runner {
 
     pub fn build_expr(&mut self, expr: ast::Expr) -> si::Expr {
         match expr {
+            ast::Expr::Infix(tokens) => self.build_expr(self.apply_precedence(tokens)),
             ast::Expr::Var(id) => si::Expr::Var(id),
             ast::Expr::Lit(lit) => si::Expr::Lit(lit),
             ast::Expr::App(e1, e2) => {
@@ -202,6 +204,88 @@ impl Runner {
         }
 
         (kinds, preds)
+    }
+
+    fn apply_precedence(&self, tokens: Vec<InfixToken>) -> ast::Expr {
+        let mut stack = vec![];
+        let mut output = vec![];
+
+        // insert function call operators
+        let mut tokens_ = vec![];
+        for tok in tokens {
+            match tok {
+                InfixToken::Op(_) => tokens_.push(tok),
+                InfixToken::Expr(_) => {
+                    if let Some(InfixToken::Expr(_)) = tokens_.last() {
+                        tokens_.push(InfixToken::Op("".to_string()));
+                    }
+                    tokens_.push(tok);
+                }
+            }
+        }
+
+        // shunting yard algorithm
+        for token in tokens_ {
+            match token {
+                InfixToken::Op(op) => {
+                    while let Some(top) = stack.last() {
+                        if let InfixToken::Op(top_op) = top {
+                            if self.precedence(&op) <= self.precedence(&top_op) {
+                                output.push(stack.pop().unwrap());
+                            } else {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    stack.push(InfixToken::Op(op));
+                }
+
+                InfixToken::Expr(expr) => output.push(InfixToken::Expr(expr)),
+            }
+        }
+
+        while let Some(top) = stack.pop() {
+            output.push(top);
+        }
+
+        // build expression
+        let mut stack = vec![];
+        for token in output {
+            match token {
+                InfixToken::Expr(x) => stack.push(x),
+
+                // function call
+                InfixToken::Op(op) if op == "" => {
+                    let e2 = stack.pop().unwrap();
+                    let e1 = stack.pop().unwrap();
+                    stack.push(ast::Expr::app(e1, e2));
+                }
+
+                // binary operator
+                InfixToken::Op(op) => {
+                    let e2 = stack.pop().unwrap();
+                    let e1 = stack.pop().unwrap();
+                    stack.push(ast::Expr::app(ast::Expr::app(ast::Expr::Var(op), e1), e2));
+                }
+            }
+        }
+
+        assert_eq!(stack.len(), 1);
+        stack.pop().unwrap()
+    }
+
+    fn precedence(&self, op: &str) -> i32 {
+        match op {
+            "*" | "/" => 7,
+            "+" | "-" => 6,
+            "==" | "!=" | "<" | ">" | "<=" | ">=" => 4,
+            "&&" => 3,
+            "||" => 2,
+            "" => 0, // function call
+            _ => 1,
+        }
     }
 }
 
