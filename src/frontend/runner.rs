@@ -92,6 +92,7 @@ impl Runner {
         let mut tenv = HashMap::new();
         tenv.insert("()".into(), Type::t_unit());
         tenv.insert("->".into(), Type::t_arrow());
+        tenv.insert("Bool".into(), Type::t_bool());
         tenv.insert("Int".into(), Type::t_int());
         tenv.insert("Float".into(), Type::t_float());
         tenv.insert("String".into(), Type::t_string());
@@ -145,6 +146,11 @@ impl Runner {
             let show_fn = interpreter::Value::primitive("show", 1, |args| {
                 interpreter::Value::String(args[0].to_string().into())
             });
+            self.primitive_class_impl(
+                "Show",
+                "Bool",
+                vec![("show", "Bool -> String", show_fn.clone())],
+            );
             self.primitive_class_impl(
                 "Show",
                 "Int",

@@ -192,6 +192,8 @@ SimpleExpr: ast::Expr = {
 
 Literal: ast::Literal = {
     "()" => ast::Literal::Unit,
+    "true" => ast::Literal::Bool(true),
+    "false" => ast::Literal::Bool(false),
     <Int> => ast::Literal::Int(<>),
     <Flt> => ast::Literal::Rat(<>),
     <Char> => ast::Literal::Char(<>),

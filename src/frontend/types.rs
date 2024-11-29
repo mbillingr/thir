@@ -19,6 +19,11 @@ impl Type {
         Type::TCon(Tycon("String".into(), Kind::Star))
     }
 
+    /// construct the boolean type
+    pub fn t_bool() -> Self {
+        Type::TCon(Tycon("Bool".into(), Kind::Star))
+    }
+
     /// construct the int type
     pub fn t_int() -> Self {
         Type::TCon(Tycon("Int".into(), Kind::Star))

@@ -12,6 +12,7 @@ pub enum Value {
     Boxed(Rc<RefCell<Self>>),
 
     Unit,
+    Bool(bool),
     I64(i64),
     Char(char),
     F64(f64),
@@ -92,6 +93,14 @@ impl Value {
             Value::Boxed(bx) => bx.borrow().is_unit(),
             Value::Unit => true,
             _ => false,
+        }
+    }
+
+    pub fn as_bool(&self) -> bool {
+        match self {
+            Value::Boxed(bx) => bx.borrow().as_bool(),
+            Value::Bool(x) => *x,
+            _ => panic!("expected boolean"),
         }
     }
 
@@ -211,6 +220,7 @@ impl std::fmt::Display for Value {
             Value::Uninitialized => write!(f, "<uninitialized>"),
             Value::Boxed(bx) => write!(f, "@{:?}", bx.borrow()),
             Value::Unit => write!(f, "()"),
+            Value::Bool(x) => write!(f, "{}", x),
             Value::I64(x) => write!(f, "{}", x),
             Value::Char(ch) => write!(f, "{}", ch),
             Value::F64(x) => write!(f, "{}", x),
