@@ -93,7 +93,7 @@ impl ClassEnv {
             .any(|sup| sup.contains(p))
             || match self.by_inst(p) {
                 Err(_) => false,
-                Ok(qs) => qs.iter().all(|_| self.entail(ps, p)),
+                Ok(qs) => qs.iter().all(|q| self.entail(ps, q)),
             }
     }
 
