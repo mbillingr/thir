@@ -124,6 +124,14 @@ impl Expr {
     pub fn sequence(stmts: Vec<Expr>, last: Expr) -> Expr {
         Expr::Seq(stmts, Box::new(last))
     }
+
+    pub fn list(mut xs: Vec<Expr>) -> Expr {
+        let mut expr = Expr::Var("Nil".into());
+        while let Some(x) = xs.pop() {
+            expr = Expr::app(Expr::app(Expr::Var("::".into()), x), expr);
+        }
+        expr
+    }
 }
 
 #[derive(Debug)]

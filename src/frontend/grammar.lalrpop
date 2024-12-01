@@ -17,7 +17,10 @@ Flt: f64 = <s:r"[0-9]+\.[0-9]+"> => f64::from_str(s).unwrap();
 String: Rc<str> = <s:r#""[^"]*""#> => ast::unescape(&s[1..s.len()-1]);
 Char: char = <s:r#"'.'"#> => s.chars().nth(1).unwrap();
 
-ConIdent: Id = <s:r"[A-Z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into();
+ConIdent: Id = {
+    <s:r"[A-Z][a-zA-Z0-9_&=!#><?^*/+\-]*"> => s.into(),
+    "[]" => "[]".into(),
+}
 
 DataVariantIdent: Id = {
     <ConIdent>,
@@ -205,6 +208,7 @@ SimpleExpr: ast::Expr = {
     <Literal> => ast::Expr::Lit(<>),
     "(" <Expr> ")",
     "{" <(<Expr> ";") *> <Expr> "}" => ast::Expr::sequence(<>),
+    "[" <CommaList<Expr>> "]" => ast::Expr::list(<>),
 }
 
 Literal: ast::Literal = {

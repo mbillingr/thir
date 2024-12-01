@@ -165,7 +165,6 @@ impl Runner {
         tenv.insert("Int".into(), Type::t_int());
         tenv.insert("Float".into(), Type::t_float());
         tenv.insert("String".into(), Type::t_string());
-        tenv.insert("[]".into(), Type::t_list());
 
         let assumptions = vec![];
 
@@ -214,6 +213,14 @@ impl Runner {
                 let s = args[0].as_string().trim().to_string();
                 interpreter::Value::String(s.into())
             });
+
+            // Add a primitive function for splitting strings
+            /*self.define_primitive("splitstr", "() -> String -> String -> [String]", |args| {
+                let s = args[0].as_string();
+                let delim = args[1].as_string();
+                let parts: Vec<_> = s.split(delim).map(|s| s.to_string()).collect();
+                interpreter::Value::List(parts.into_iter().map(interpreter::Value::String).collect())
+            });*/
 
             // Add type class for converting values to string
             self.define_class(
