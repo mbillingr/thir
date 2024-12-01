@@ -328,7 +328,13 @@ impl Runner {
         let full_path = current_dir.join(file_path);
         let new_dir = full_path.parent().unwrap();
 
-        let file_content = fs::read_to_string(&full_path).map_err(|e| e.to_string())?;
+        let file_content = fs::read_to_string(&full_path).map_err(|e| {
+            format!(
+                "{} while reading file {}",
+                e.to_string(),
+                full_path.to_string_lossy()
+            )
+        })?;
         self.run_str(&file_content, new_dir)?;
         Ok(())
     }
