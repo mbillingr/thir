@@ -466,7 +466,6 @@ impl Runner {
             let method = self.value_env.get(&name).unwrap();
             let (_, dispatch_arg, _, _) = method.as_method().unwrap();
             let ty = sc.get_nth_arg_ty(dispatch_arg).unwrap();
-            println!("=== {:?}", ty);
 
             method.add_impl(ty.clone(), val);
         }
