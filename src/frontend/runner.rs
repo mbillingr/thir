@@ -12,6 +12,7 @@ use crate::type_checker::type_inference::TI;
 use crate::type_checker::types::{Tycon, Type, Tyvar};
 use crate::type_checker::Id;
 use std::collections::HashMap;
+use std::fmt::format;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -245,6 +246,29 @@ impl Runner {
                 "Show",
                 "String",
                 vec![("show", "String -> String", show_fn.clone())],
+            );
+
+            // Concatenation class
+            self.define_class(
+                grammar::DefClassParser::new()
+                    .parse("interface Concatenate a { (++) : a -> a -> a; }")
+                    .unwrap(),
+            )
+            .unwrap();
+            // Implement Concatenation for certain primitives
+            self.primitive_class_impl(
+                "Concatenate",
+                "String",
+                vec![(
+                    "++",
+                    "String -> String -> String",
+                    interpreter::Value::primitive("s++s", 2, |args| {
+                        let a = args[0].as_string();
+                        let b = args[1].as_string();
+                        interpreter::Value::String(format!("{}{}", a, b).into())
+                    })
+                    .clone(),
+                )],
             );
 
             define_arithmetic_operator!(self, "Add", "+", +);
