@@ -9,6 +9,11 @@ impl Show forall (b : Show) => [b] {
               in "[" ++ (commasep xs) ++ "]";
 }
 
+impl Concatenate forall b => [b] {
+    (++)     (Nil) rhs = rhs
+       | (x :: xs) rhs = x :: (xs ++ rhs);
+}
+
 
 // function composition operator
 (.) : forall a b c => (b -> c) -> (a -> b) -> a -> c;

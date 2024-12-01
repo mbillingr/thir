@@ -239,6 +239,13 @@ impl Runner {
                 result
             });
 
+            // Add a primitive function for converting strings to integers
+            self.define_primitive("atoi", "String -> Int", |args| {
+                let s = args[0].as_string();
+                let i = s.parse::<i64>().unwrap();
+                interpreter::Value::I64(i)
+            });
+
             // Add type class for converting values to string
             self.define_class(
                 grammar::DefClassParser::new()
