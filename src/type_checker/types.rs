@@ -3,6 +3,8 @@ Types
 !*/
 
 use crate::type_checker::kinds::{HasKind, Kind};
+use crate::type_checker::qualified::Qual;
+use crate::type_checker::scheme::Scheme;
 use crate::type_checker::GenId;
 use crate::type_checker::Id;
 use std::fmt::{Debug, Formatter};
@@ -91,6 +93,37 @@ impl Type {
                 _ => None,
             },
             _ => None,
+        }
+    }
+
+    pub fn contains(&self, component: &Self) -> bool {
+        match self {
+            Type::TVar(_) => self == component,
+            Type::TCon(_) => self == component,
+            Type::TApp(app) => app.0.contains(component) || app.1.contains(component),
+            Type::TGen(_) => self == component,
+        }
+    }
+
+    pub fn find_first_arg_with_genvar(&self, k: GenId) -> Option<usize> {
+        let (args, _) = self.fn_types();
+        for (i, arg) in args.iter().enumerate() {
+            if arg.contains(&Type::TGen(k)) {
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    /// compare types for equality, considering generics equal to all types
+    pub fn soft_eq(&self, ty: &Self) -> bool {
+        match (self, ty) {
+            (Type::TApp(app1), Type::TApp(app2)) => {
+                app1.0.soft_eq(&app2.0) && app1.1.soft_eq(&app2.1)
+            }
+            (Type::TGen(_), _) => true,
+            (_, Type::TGen(_)) => true,
+            _ => self == ty,
         }
     }
 }

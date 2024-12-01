@@ -366,7 +366,7 @@ fn ti_bindgroup(
     Ok((once(ps).chain(qss).flatten().collect(), as2_as1))
 }
 
-fn ti_seq<T>(
+fn ti_seq<T: std::fmt::Debug>(
     inf: impl Fn(&mut TI, &ClassEnv, &[Assump], &T) -> crate::Result<(Vec<Pred>, Vec<Assump>)>,
     ti: &mut TI,
     ce: &ClassEnv,

@@ -1,7 +1,9 @@
 use crate::frontend::type_inference::Alt;
 use crate::interpreter::evaluator::Context;
 use crate::interpreter::{dispatch, Env};
+use crate::type_checker;
 use crate::type_checker::scheme::Scheme;
+use crate::type_checker::types;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -20,23 +22,30 @@ pub enum Value {
 
     Closure(Closure),
 
-    Constructor(Rc<str>, Rc<str>, Vec<Value>),
+    Constructor(Rc<types::Type>, Rc<str>, Vec<Value>),
 
-    Method(Rc<RefCell<HashMap<Scheme, Value>>>, Vec<Value>),
+    Method(
+        Rc<str>,
+        usize,
+        Rc<RefCell<Vec<(types::Type, Value)>>>,
+        Vec<Value>,
+    ),
 
     Primitive(Primitive, Vec<Value>),
 }
 
 impl Value {
-    pub fn is_a(&self, tyname: &str) -> bool {
-        match self {
-            Value::Boxed(bx) => bx.borrow().is_a(tyname),
-            Value::I64(_) => tyname == "Int",
-            Value::Char(_) => tyname == "Char",
-            Value::F64(_) => tyname == "Double",
-            Value::String(_) => tyname == "String",
-            Value::Constructor(ty, _, _) => &**ty == tyname,
-            _ => false,
+    pub fn is_a(&self, ty: &type_checker::types::Type) -> bool {
+        use type_checker::types::{Tycon, Type::*, Tyvar};
+        match (ty, self) {
+            (ty, Value::Boxed(bx)) => bx.borrow().is_a(ty),
+            (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::I64(_)) => tn == "Int",
+            (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::Char(_)) => tn == "Char",
+            (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::F64(_)) => tn == "Double",
+            (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::String(_)) => tn == "String",
+            (ty, Value::Constructor(tc, _, _)) => types::Type::soft_eq(tc, ty),
+            (TGen(_), _) => true,
+            _ => false, //todo!("{:?} {:?}", ty, self),
         }
     }
 
@@ -58,7 +67,7 @@ impl Value {
         }
     }
 
-    pub fn constructor(ty: impl Into<Rc<str>>, tag: impl Into<Rc<str>>) -> Self {
+    pub fn constructor(ty: type_checker::types::Type, tag: impl Into<Rc<str>>) -> Self {
         Value::Constructor(ty.into(), tag.into(), vec![])
     }
 
@@ -70,17 +79,34 @@ impl Value {
         }
     }
 
-    pub fn method() -> Self {
-        Value::Method(Rc::new(RefCell::new(HashMap::new())), vec![])
+    pub fn method(name: impl Into<Rc<str>>, dispatch_arg: usize) -> Self {
+        Value::Method(
+            name.into(),
+            dispatch_arg,
+            Rc::new(RefCell::new(Vec::new())),
+            vec![],
+        )
     }
 
-    pub fn add_impl(&self, sc: Scheme, value: Value) {
+    pub fn add_impl(&self, ty: types::Type, value: Value) {
+        let (_, _, impls, _) = self.as_method().expect("expected method");
+        impls.borrow_mut().push((ty, value));
+    }
+
+    pub fn as_method(
+        &self,
+    ) -> Option<(
+        Rc<str>,
+        usize,
+        Rc<RefCell<Vec<(types::Type, Value)>>>,
+        Vec<Value>,
+    )> {
         match self {
-            Value::Boxed(bx) => bx.borrow().add_impl(sc, value),
-            Value::Method(impls, _) => {
-                impls.borrow_mut().insert(sc, value);
+            Value::Boxed(bx) => bx.borrow().as_method(),
+            Value::Method(name, dispatch_arg, impls, args) => {
+                Some((name.clone(), *dispatch_arg, impls.clone(), args.clone()))
             }
-            _ => panic!("expected method"),
+            _ => None,
         }
     }
 
@@ -195,19 +221,21 @@ impl Value {
                 panic!("no pattern matched")
             }
 
-            Value::Method(impls, gathered_args) => {
+            Value::Method(name, dispatch_arg, impls, gathered_args) => {
                 // although this late binding / dynamic dispatch feels super inefficient,
                 // it's needed for generic code, where the concrete type is not known during checking/annotation
                 let mut gathered_args = gathered_args.clone();
                 gathered_args.extend(args);
 
-                for (sc, value) in impls.borrow().iter() {
-                    if dispatch::scheme_matches(sc, &gathered_args, None) {
+                println!("dispatch arg: {:?}", gathered_args[*dispatch_arg]);
+                for (ty, value) in impls.borrow().iter() {
+                    println!("     checking {:?}", ty);
+                    if dispatch::type_matches(ty, &gathered_args[*dispatch_arg]) {
                         return value.apply(gathered_args);
                     }
                 }
 
-                Value::Method(impls.clone(), gathered_args)
+                Value::Method(name.clone(), *dispatch_arg, impls.clone(), gathered_args)
             }
             _ => panic!("non-callable value {}", self),
         }
@@ -241,9 +269,10 @@ impl std::fmt::Display for Value {
                 }
                 Ok(())
             }
-            Value::Method(_, args) => write!(
+            Value::Method(name, _, _, args) => write!(
                 f,
-                "<method [{}]>",
+                "<method {} [{}]>",
+                name,
                 args.iter()
                     .map(|v| format!("{}", v))
                     .collect::<Vec<_>>()

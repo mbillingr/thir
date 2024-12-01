@@ -9,7 +9,7 @@ use crate::type_checker::predicates::Pred;
 use crate::type_checker::qualified::Qual;
 use crate::type_checker::scheme::Scheme;
 use crate::type_checker::type_inference::TI;
-use crate::type_checker::types::{Tycon, Type};
+use crate::type_checker::types::{Tycon, Type, Tyvar};
 use crate::type_checker::Id;
 use std::collections::HashMap;
 use std::fs;
@@ -187,6 +187,12 @@ impl Runner {
 
     pub fn init(&mut self) {
         {
+            // Add a primitive function for debug printing
+            self.define_primitive("dbg", "forall a => a -> ()", |args| {
+                println!("{:?}", args);
+                interpreter::Value::Unit
+            });
+
             // Add a primitive function for printing strings
             self.define_primitive("puts", "String -> ()", |args| {
                 let s = args[0].as_string();
@@ -266,8 +272,13 @@ impl Runner {
 
         for (mth_name, mth_sig, value) in methods {
             let scm = self.build_scheme(grammar::SchemeParser::new().parse(mth_sig).unwrap());
+
             let mth = self.value_env.get(mth_name).unwrap();
-            mth.add_impl(scm, value)
+
+            let (_, k, _, _) = mth.as_method().expect("expected method");
+            let ty = scm.get_nth_arg_ty(k).unwrap();
+
+            mth.add_impl(ty.clone(), value)
         }
     }
 
@@ -355,8 +366,12 @@ impl Runner {
 
         self.class_env = et.apply(&self.class_env)?;
         for a in assumptions {
-            self.value_env
-                .insert(a.i.clone(), interpreter::Value::method());
+            let dispatchable_arg = a.sc.find_first_arg_with_genvar(0).unwrap();
+
+            self.value_env.insert(
+                a.i.clone(),
+                interpreter::Value::method(a.i.clone(), dispatchable_arg),
+            );
             self.assumptions.push(a);
         }
 
@@ -364,30 +379,38 @@ impl Runner {
     }
 
     fn implement_class(&mut self, ic: ast::ImplClass) -> crate::Result<()> {
-        let ty = self
-            .type_env
-            .get(&ic.ty)
-            .ok_or_else(|| format!("unknown type: {}", ic.ty))?
-            .clone();
+        let mut cls_typeenv = self.type_env.clone();
+        let (vs, preds) = self.build_typeargs(ic.genvars.clone(), &mut cls_typeenv);
+
+        let backup = std::mem::replace(&mut self.type_env, cls_typeenv);
+
+        let ty = self.build_type(ic.ty);
 
         let mut scenv = self.type_env.clone();
 
         let mut expls = vec![];
 
+        let mut original_method_names = vec![];
         if let Some((var, mut required_methods)) = self.methods.get(&ic.cls).cloned() {
             scenv.insert(var, ty.clone());
 
             for mi in ic.methods {
                 let name = mi.0;
-                let sc = required_methods
+                let mut sc = required_methods
                     .remove(&name)
                     .ok_or_else(|| format!("unexpected method: {name}"))?;
 
+                sc.genvars = ic.genvars.iter().cloned().chain(sc.genvars).collect();
+
+                //let sc_ = self.build_nested_scheme(impl_sc.clone(), sc);
                 let sc_ = self.with_tyenv(scenv.clone(), |ctx| ctx.build_scheme(sc));
 
                 let alts = self.build_alts(mi.1);
 
-                expls.push(Expl(name, sc_, alts));
+                // adding an impossible prefix makes the names unique so they don't shadow their
+                // generic definitions during type checking.
+                expls.push(Expl(format!("tmp {name}"), sc_, alts));
+                original_method_names.push(name);
             }
 
             if !required_methods.is_empty() {
@@ -395,18 +418,33 @@ impl Runner {
             }
         }
 
-        let et = EnvTransformer::add_inst(vec![], Pred::IsIn(ic.cls, ty));
+        self.type_env = backup;
+
+        let et = EnvTransformer::add_inst(preds, Pred::IsIn(ic.cls, ty));
         let class_env = et.apply(&self.class_env)?;
 
         let mut prog = Program(vec![BindGroup(expls, vec![])]);
-        let (_, ti) = ti_program(&class_env, self.assumptions.clone(), &prog)?;
+        let (ass, ti) = ti_program(&class_env, self.assumptions.clone(), &prog)?;
 
         self.class_env = class_env;
 
         let ctx = interpreter::Context::new(ti);
-        for Expl(name, sc, alts) in prog.0.pop().unwrap().0 {
+        for (Expl(_, sc, alts), name) in prog
+            .0
+            .pop()
+            .unwrap()
+            .0
+            .into_iter()
+            .zip(original_method_names)
+        {
             let val = ctx.eval_alts(&alts, &self.value_env);
-            self.value_env.get(&name).unwrap().add_impl(sc, val);
+
+            let method = self.value_env.get(&name).unwrap();
+            let (_, dispatch_arg, _, _) = method.as_method().unwrap();
+            let ty = sc.get_nth_arg_ty(dispatch_arg).unwrap();
+            println!("=== {:?}", ty);
+
+            method.add_impl(ty.clone(), val);
         }
 
         Ok(())
@@ -418,11 +456,11 @@ impl Runner {
         }
         let type_arity = dt.genvars.len();
         let kind = Kind::ty_constructor(type_arity);
-        let dty = Type::TCon(Tycon(dt.typename.clone(), kind));
-        self.type_env.insert(dt.typename.clone(), dty.clone());
+        let tcon = Type::TCon(Tycon(dt.typename.clone(), kind));
+        self.type_env.insert(dt.typename.clone(), tcon.clone());
 
         let mut method_tenv = self.type_env.clone();
-        let (kinds, preds) = self.build_typeargs(dt.genvars, &mut method_tenv);
+        let (vs, preds) = self.build_typeargs(dt.genvars, &mut method_tenv);
 
         let backup = std::mem::replace(&mut self.type_env, method_tenv);
 
@@ -434,28 +472,27 @@ impl Runner {
             let args: Vec<_> = params.into_iter().map(|p| self.build_type(p)).collect();
 
             // apply the type-constructor
-            let mut ty = dty.clone();
-            let tc_args = (0..type_arity).map(|k| Type::TGen(k));
+            let mut dty = tcon.clone();
+            let tc_args = vs.iter().map(|v| Type::TVar(v.clone()));
             for a in tc_args {
-                ty = Type::tapp(ty, a)
+                dty = Type::tapp(dty, a)
             }
 
             // constructor-function arguments
+            let mut ty = dty.clone();
             for a in args.into_iter().rev() {
                 ty = Type::func(a, ty);
             }
 
             let assump = Assump {
                 i: i.clone(),
-                sc: Scheme::Forall(kinds.clone(), Qual(preds.clone(), ty)),
+                sc: Scheme::quantify(&vs, &Qual(preds.clone(), ty)),
             };
             self.assumptions.push(assump.clone());
             self.constructors.push(assump);
 
-            self.value_env.insert(
-                i.clone(),
-                interpreter::Value::constructor(dt.typename.clone(), i),
-            );
+            self.value_env
+                .insert(i.clone(), interpreter::Value::constructor(dty.clone(), i));
         }
 
         self.type_env = backup;

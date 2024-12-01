@@ -63,15 +63,17 @@ impl Context {
                     .resolve();
 
                 // I guess this can be considered static dispatch
-                if let Value::Method(impls, args) = &val {
-                    assert!(args.is_empty());
-                    if let Some(t) = self.ti.get_annotation(expr) {
-                        for (sc, value) in impls.borrow().iter() {
-                            if dispatch::scheme_matches_type(sc, &t) {
-                                return value.clone();
+                if let Value::Method(_, dispatch_arg, impls, args) = &val {
+                    if args.is_empty() {
+                        // if it has args, the method is in the process of being dynamically dispatched
+                        if let Some(t) = self.ti.get_annotation(expr) {
+                            for (ty, value) in impls.borrow().iter() {
+                                if dispatch::type_matches_type(ty, &t) {
+                                    return value.clone();
+                                }
                             }
+                            //println!("WARNING: no method matched for {:?}", t);
                         }
-                        //println!("WARNING: no method matched for {:?}", t);
                     }
                 }
                 val

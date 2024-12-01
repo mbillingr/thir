@@ -36,13 +36,23 @@ impl DefClass {
 #[derive(Debug)]
 pub struct ImplClass {
     pub cls: Id,
-    pub ty: Id,
+    pub genvars: Vec<(Id, Kind, Vec<Id>)>,
+    pub ty: Type,
     pub methods: Vec<Impl>,
 }
 
 impl ImplClass {
-    pub fn new(cls: Id, ty: Id, methods: Vec<Impl>) -> Self {
-        ImplClass { cls, ty, methods }
+    pub fn new(cls: Id, genvars: Vec<(Id, Kind, Vec<Id>)>, ty: Type, methods: Vec<Impl>) -> Self {
+        ImplClass {
+            cls,
+            genvars,
+            ty,
+            methods,
+        }
+    }
+
+    pub fn new_specific(cls: Id, ty: Type, methods: Vec<Impl>) -> Self {
+        Self::new(cls, vec![], ty, methods)
     }
 }
 

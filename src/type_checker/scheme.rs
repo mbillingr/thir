@@ -48,6 +48,18 @@ impl Scheme {
             Scheme::Forall(_, Qual(_, t)) => t.fn_types().0.len(),
         }
     }
+
+    pub fn find_first_arg_with_genvar(&self, k: GenId) -> Option<usize> {
+        match self {
+            Scheme::Forall(_, Qual(_, t)) => t.find_first_arg_with_genvar(k),
+        }
+    }
+
+    pub fn get_nth_arg_ty(&self, n: usize) -> Option<&Type> {
+        match self {
+            Scheme::Forall(_, Qual(_, t)) => t.fn_types().0.get(n).copied(),
+        }
+    }
 }
 
 impl Type {

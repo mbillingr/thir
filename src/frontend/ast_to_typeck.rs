@@ -6,8 +6,8 @@ use crate::frontend::{ast, type_inference as si};
 use crate::type_checker::assumptions::find;
 use crate::type_checker::kinds::Kind;
 use crate::type_checker::predicates::Pred;
+use crate::type_checker::scheme::Scheme;
 use crate::type_checker::{predicates, qualified, scheme, types, Id};
-use crate::utils::lists::List;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
@@ -174,36 +174,37 @@ impl Runner {
 
     pub fn build_scheme(&mut self, sc: ast::Scheme) -> scheme::Scheme {
         let mut tyenv = self.type_env.clone();
-        let (kinds, preds) = self.build_typeargs(sc.genvars, &mut tyenv);
+        let (vs, preds) = self.build_typeargs(sc.genvars, &mut tyenv);
 
         let ty = self.with_tyenv(tyenv, |ctx| ctx.build_type(sc.ty));
 
-        let qual_ty = qualified::Qual(preds, ty);
-        scheme::Scheme::Forall(kinds, qual_ty)
+        let qt = qualified::Qual(preds, ty);
+
+        Scheme::quantify(&vs, &qt)
     }
 
     pub fn build_typeargs(
         &mut self,
         genvars: Vec<(Id, Kind, Vec<Id>)>,
         tyenv: &mut TEnv,
-    ) -> (List<Kind>, Vec<Pred>) {
-        let mut kinds = List::Nil;
-        let mut idx = 0;
+    ) -> (Vec<types::Tyvar>, Vec<Pred>) {
         let mut preds = vec![];
+        let mut vs = vec![];
 
         for (name, kind, constraints) in genvars {
-            kinds = kinds.cons(kind);
-            tyenv.insert(name, types::Type::TGen(idx));
+            let tv = types::Tyvar(name.clone(), kind);
+            vs.push(tv.clone());
+            let t = types::Type::TVar(tv);
 
             for c in constraints {
-                let pred = predicates::Pred::IsIn(c, types::Type::TGen(idx));
+                let pred = predicates::Pred::IsIn(c, t.clone());
                 preds.push(pred);
             }
 
-            idx += 1;
+            tyenv.insert(name, t.clone());
         }
 
-        (kinds, preds)
+        (vs, preds)
     }
 
     fn apply_precedence(&self, tokens: Vec<InfixToken>) -> ast::Expr {
