@@ -70,7 +70,7 @@ ImplClass: ast::ImplClass = {
     "impl" <ConIdent> "for" <Type> "{" <(<Impl> ";") *> "}" => ast::ImplClass::new_specific(<>),
 }
 
-DataType: ast::DataType = {
+pub DataType: ast::DataType = {
     "data" <ConIdent> <SchemeArg *> "=" <PipeList<(<DataVariantIdent> <Types>)>> ";" => ast::DataType::new(<>),
 }
 

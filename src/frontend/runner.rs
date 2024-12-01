@@ -187,6 +187,14 @@ impl Runner {
 
     pub fn init(&mut self) {
         {
+            // A List type
+            self.define_datatype(
+                grammar::DataTypeParser::new()
+                    .parse("data [] a = Nil | (::) a [a];")
+                    .unwrap(),
+            )
+            .unwrap();
+
             // Add a primitive function for debug printing
             self.define_primitive("dbg", "forall a => a -> ()", |args| {
                 println!("{:?}", args);

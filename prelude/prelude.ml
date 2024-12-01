@@ -1,8 +1,4 @@
 
-// although the language provides syntactic sugar for lists,
-// the have to be explicitly defined in some way.
-data [] a = Nil | (::) a [a];
-
 // TODO
 //   Problem 1: using a instead of b below conflicts with another a (presumably the one in the class def)
 
