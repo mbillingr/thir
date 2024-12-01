@@ -71,6 +71,14 @@ impl Value {
         Value::Constructor(ty.into(), tag.into(), vec![])
     }
 
+    pub fn applied_constructor(
+        ty: type_checker::types::Type,
+        tag: impl Into<Rc<str>>,
+        args: Vec<Self>,
+    ) -> Self {
+        Value::Constructor(ty.into(), tag.into(), args)
+    }
+
     pub fn as_constructor(&self) -> Option<(Rc<str>, Vec<Value>)> {
         match self {
             Value::Boxed(bx) => bx.borrow().as_constructor(),

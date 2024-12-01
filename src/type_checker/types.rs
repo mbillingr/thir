@@ -71,6 +71,10 @@ impl Type {
         Type::TApp(Rc::new((a, b)))
     }
 
+    pub fn tcon(id: impl Into<Id>, kind: Kind) -> Type {
+        Type::TCon(Tycon(id.into(), kind))
+    }
+
     /// assuming this is a function type, return all types components (argument and return types)
     pub fn fn_types(&self) -> (Vec<&Type>, &Type) {
         let mut args = vec![];
