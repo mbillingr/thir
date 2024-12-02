@@ -407,7 +407,7 @@ impl Runner {
             // insert the "self" type as the first generic
             sc.genvars.insert(
                 0,
-                (class.varname.clone(), Kind::Star, vec![class.name.clone()]),
+                (class.varname.clone(), class.kind.clone(), vec![class.name.clone()]),
             );
             let sc = self.build_scheme(sc);
 

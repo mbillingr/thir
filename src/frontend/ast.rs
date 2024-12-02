@@ -18,15 +18,17 @@ pub enum TopLevel {
 pub struct DefClass {
     pub name: Id,
     pub varname: Id,
+    pub kind: Kind,
     pub super_classes: Vec<Id>,
     pub methods: Vec<(Id, Scheme)>,
 }
 
 impl DefClass {
-    pub fn new(name: Id, varname: Id, super_classes: Vec<Id>, methods: Vec<(Id, Scheme)>) -> Self {
+    pub fn new(name: Id, varname: Id, kind: Kind, super_classes: Vec<Id>, methods: Vec<(Id, Scheme)>) -> Self {
         DefClass {
             name,
             varname,
+            kind,
             super_classes,
             methods,
         }

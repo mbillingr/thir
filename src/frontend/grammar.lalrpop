@@ -60,9 +60,9 @@ Include = {
 }
 
 pub DefClass: ast::DefClass = {
-    "interface" <ConIdent>     <AnyIdent> ":" <ConIdent *>     "{" <(<VarIdent> ":" <Scheme> ";") *> "}" => ast::DefClass::new(<>),
-    "interface" <ConIdent> "(" <AnyIdent> ":" <ConIdent *> ")" "{" <(<VarIdent> ":" <Scheme>  ";") *> "}" => ast::DefClass::new(<>),
-    "interface" <c:ConIdent> <i:AnyIdent> "{" <ms:(<VarIdent> ":" <Scheme> ";") *> "}" => ast::DefClass::new(c, i, vec![], ms),
+    "interface" <ConIdent>     <AnyIdent> ":" <DefaultKind> <ConIdent *>     "{" <(<VarIdent> ":" <Scheme> ";") *> "}" => ast::DefClass::new(<>),
+    "interface" <ConIdent> "(" <AnyIdent> ":" <DefaultKind> <ConIdent *> ")" "{" <(<VarIdent> ":" <Scheme>  ";") *> "}" => ast::DefClass::new(<>),
+    "interface" <c:ConIdent> <i:AnyIdent> "{" <ms:(<VarIdent> ":" <Scheme> ";") *> "}" => ast::DefClass::new(c, i, kinds::Kind::Star, vec![], ms),
  }
 
 ImplClass: ast::ImplClass = {
@@ -113,6 +113,11 @@ SchemeArg: (Id, kinds::Kind, Vec<Id>) = {
     },
 
     <AnyIdent> => (<>, kinds::Kind::Star, vec![]),
+}
+
+DefaultKind: kinds::Kind = {
+    <Kind>,
+     => kinds::Kind::Star,
 }
 
 Kind: kinds::Kind = {
