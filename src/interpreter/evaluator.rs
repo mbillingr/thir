@@ -130,15 +130,6 @@ impl Context {
 
             Pat::PLit(lit) => self.match_lit(lit, val),
 
-            Pat::PNpk(name, k) => {
-                if let Value::I64(x) = val {
-                    env.insert(name.clone(), Value::I64(*x - k));
-                    true
-                } else {
-                    false
-                }
-            }
-
             Pat::PCon(Assump { i, .. }, pats) => {
                 let (tag, fields) = val.as_constructor().expect("expected constructor");
                 if &*tag != i {

@@ -85,7 +85,6 @@ pub enum Pat {
     PWildcard,
     PAs(Id, Box<Pat>),
     PLit(Literal),
-    PNpk(Id, i64),
     PCon(Id, Vec<Pat>),
 }
 

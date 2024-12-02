@@ -109,7 +109,6 @@ impl Runner {
             ast::Pat::PWildcard => si::Pat::PWildcard,
             ast::Pat::PAs(id, pat) => si::Pat::PAs(id, Rc::new(self.build_pat(*pat))),
             ast::Pat::PLit(lit) => si::Pat::PLit(lit),
-            ast::Pat::PNpk(id, n) => si::Pat::PNpk(id, n),
             ast::Pat::PCon(id, pats) => {
                 let constructor = find(&id, &self.constructors).unwrap().clone();
                 let ps = pats.into_iter().map(|p| self.build_pat(p)).collect();

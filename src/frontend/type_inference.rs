@@ -42,7 +42,6 @@ pub enum Pat {
     PWildcard,
     PAs(Id, Rc<Pat>),
     PLit(Literal),
-    PNpk(Id, i64),
     PCon(Assump, Vec<Pat>),
 }
 
@@ -80,18 +79,6 @@ fn ti_pat(ti: &mut TI, pat: &Pat) -> crate::Result<(Vec<Pred>, Vec<Assump>, Type
         Pat::PLit(li) => {
             let (ps, t) = ti_lit(ti, li);
             Ok((ps, vec![], t))
-        }
-
-        Pat::PNpk(i, _) => {
-            let t = ti.new_tvar(Kind::Star);
-            Ok((
-                vec![Pred::IsIn("Integral".into(), t.clone())],
-                vec![Assump {
-                    i: i.clone(),
-                    sc: t.clone().to_scheme(),
-                }],
-                t,
-            ))
         }
 
         Pat::PCon(Assump { sc, .. }, pats) => {
