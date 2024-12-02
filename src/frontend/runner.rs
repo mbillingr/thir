@@ -9,10 +9,9 @@ use crate::type_checker::predicates::Pred;
 use crate::type_checker::qualified::Qual;
 use crate::type_checker::scheme::Scheme;
 use crate::type_checker::type_inference::TI;
-use crate::type_checker::types::{Tycon, Type, Tyvar};
+use crate::type_checker::types::{Tycon, Type};
 use crate::type_checker::Id;
 use std::collections::HashMap;
-use std::fmt::format;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -441,7 +440,7 @@ impl Runner {
 
     fn implement_class(&mut self, ic: ast::ImplClass) -> crate::Result<()> {
         let mut cls_typeenv = self.type_env.clone();
-        let (vs, preds) = self.build_typeargs(ic.genvars.clone(), &mut cls_typeenv);
+        let (_, preds) = self.build_typeargs(ic.genvars.clone(), &mut cls_typeenv);
 
         let backup = std::mem::replace(&mut self.type_env, cls_typeenv);
 
@@ -486,7 +485,7 @@ impl Runner {
         let class_env = et.apply(&self.class_env)?;
 
         let mut prog = Program(vec![BindGroup(expls, vec![])]);
-        let (ass, ti) = ti_program(&class_env, self.assumptions.clone(), &prog)?;
+        let (_, ti) = ti_program(&class_env, self.assumptions.clone(), &prog)?;
 
         self.class_env = class_env;
 

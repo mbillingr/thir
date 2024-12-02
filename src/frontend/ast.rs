@@ -2,10 +2,8 @@
 
 pub use crate::frontend::type_inference::Literal;
 use crate::type_checker::kinds::Kind;
-use crate::type_checker::{types, Id};
+use crate::type_checker::{Id};
 use std::rc::Rc;
-use crate::frontend::ast;
-use crate::frontend::ast_to_typeck::TEnv;
 
 #[derive(Debug)]
 pub enum TopLevel {

@@ -141,6 +141,7 @@ impl EnvTransformer {
         self.0(ce)
     }
 
+    #[allow(dead_code)]
     pub fn compose(self, other: Self) -> Self {
         EnvTransformer(Rc::new(move |ce| {
             let ce_ = self.0(ce)?;

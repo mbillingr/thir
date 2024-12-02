@@ -3,8 +3,6 @@ Types
 !*/
 
 use crate::type_checker::kinds::{HasKind, Kind};
-use crate::type_checker::qualified::Qual;
-use crate::type_checker::scheme::Scheme;
 use crate::type_checker::GenId;
 use crate::type_checker::Id;
 use std::fmt::{Debug, Formatter};
@@ -69,10 +67,6 @@ impl Type {
     /// construct a type application (convenience method)
     pub fn tapp(a: Type, b: Type) -> Type {
         Type::TApp(Rc::new((a, b)))
-    }
-
-    pub fn tcon(id: impl Into<Id>, kind: Kind) -> Type {
-        Type::TCon(Tycon(id.into(), kind))
     }
 
     /// assuming this is a function type, return all types components (argument and return types)

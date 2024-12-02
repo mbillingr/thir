@@ -2,10 +2,8 @@ use crate::frontend::type_inference::Alt;
 use crate::interpreter::evaluator::Context;
 use crate::interpreter::{dispatch, Env};
 use crate::type_checker;
-use crate::type_checker::scheme::Scheme;
 use crate::type_checker::types;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
