@@ -22,16 +22,16 @@ pub enum Value {
 
     Closure(Closure),
 
-    Constructor(Rc<types::Type>, Rc<str>, Vec<Value>),
+    Constructor(Rc<types::Type>, Rc<str>, Rc<Vec<Value>>),
 
     Method(
         Rc<str>,
         usize,
         Rc<RefCell<Vec<(types::Type, Value)>>>,
-        Vec<Value>,
+        Rc<Vec<Value>>,
     ),
 
-    Primitive(Primitive, Vec<Value>),
+    Primitive(Primitive, Rc<Vec<Value>>),
 }
 
 impl Value {
@@ -68,7 +68,7 @@ impl Value {
     }
 
     pub fn constructor(ty: type_checker::types::Type, tag: impl Into<Rc<str>>) -> Self {
-        Value::Constructor(ty.into(), tag.into(), vec![])
+        Value::Constructor(ty.into(), tag.into(), Rc::new(vec![]))
     }
 
     pub fn applied_constructor(
@@ -76,10 +76,10 @@ impl Value {
         tag: impl Into<Rc<str>>,
         args: Vec<Self>,
     ) -> Self {
-        Value::Constructor(ty.into(), tag.into(), args)
+        Value::Constructor(ty.into(), tag.into(), Rc::new(args))
     }
 
-    pub fn as_constructor(&self) -> Option<(Rc<str>, Vec<Value>)> {
+    pub fn as_constructor(&self) -> Option<(Rc<str>, Rc<Vec<Value>>)> {
         match self {
             Value::Boxed(bx) => bx.borrow().as_constructor(),
             Value::Constructor(_, tag, fields) => Some((tag.clone(), fields.clone())),
@@ -92,7 +92,7 @@ impl Value {
             name.into(),
             dispatch_arg,
             Rc::new(RefCell::new(Vec::new())),
-            vec![],
+            Rc::new(vec![]),
         )
     }
 
@@ -107,7 +107,7 @@ impl Value {
         Rc<str>,
         usize,
         Rc<RefCell<Vec<(types::Type, Value)>>>,
-        Vec<Value>,
+        Rc<Vec<Value>>,
     )> {
         match self {
             Value::Boxed(bx) => bx.borrow().as_method(),
@@ -119,7 +119,7 @@ impl Value {
     }
 
     pub fn primitive(name: &'static str, arity: usize, f: fn(&[Value]) -> Value) -> Self {
-        Value::Primitive(Primitive { name, arity, f }, vec![])
+        Value::Primitive(Primitive { name, arity, f }, Rc::new(vec![]))
     }
 
     pub fn is_unit(&self) -> bool {
@@ -175,19 +175,19 @@ impl Value {
             Value::Boxed(bx) => bx.borrow().apply(args),
 
             Value::Constructor(ty, tag, fields) => {
-                let mut fields = fields.clone();
+                let mut fields = (**fields).clone();
                 fields.extend(args);
-                Value::Constructor(ty.clone(), tag.clone(), fields)
+                Value::Constructor(ty.clone(), tag.clone(), Rc::new(fields))
             }
 
             Value::Primitive(prim, gathered_args) => {
-                let mut gathered_args = gathered_args.clone();
+                let mut gathered_args = (**gathered_args).clone();
                 gathered_args.extend(args);
 
                 assert!(gathered_args.len() <= prim.arity);
 
                 if gathered_args.len() < prim.arity {
-                    return Value::Primitive(prim.clone(), gathered_args);
+                    return Value::Primitive(prim.clone(), Rc::new(gathered_args));
                 }
 
                 (prim.f)(&gathered_args)
@@ -232,7 +232,7 @@ impl Value {
             Value::Method(name, dispatch_arg, impls, gathered_args) => {
                 // although this late binding / dynamic dispatch feels super inefficient,
                 // it's needed for generic code, where the concrete type is not known during checking/annotation
-                let mut gathered_args = gathered_args.clone();
+                let mut gathered_args = (**gathered_args).clone();
                 gathered_args.extend(args);
 
                 for (ty, value) in impls.borrow().iter() {
@@ -241,7 +241,7 @@ impl Value {
                     }
                 }
 
-                Value::Method(name.clone(), *dispatch_arg, impls.clone(), gathered_args)
+                Value::Method(name.clone(), *dispatch_arg, impls.clone(), Rc::new(gathered_args))
             }
             _ => panic!("non-callable value {}", self),
         }
