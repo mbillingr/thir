@@ -448,22 +448,23 @@ impl Runner {
         let ty = self.build_type(ic.ty);
 
         let mut scenv = self.type_env.clone();
+        scenv.insert("the impl type".into(), ty.clone());
 
         let mut expls = vec![];
 
         let mut original_method_names = vec![];
         if let Some((var, mut required_methods)) = self.methods.get(&ic.cls).cloned() {
-            scenv.insert(var, ty.clone());
-
             for mi in ic.methods {
                 let name = mi.0;
                 let mut sc = required_methods
                     .remove(&name)
                     .ok_or_else(|| format!("unexpected method: {name}"))?;
 
+                // rename the "self" type to something impossible, in case it's being shadowed
+                sc.rename(&var, "the impl type".into());
+
                 sc.genvars = ic.genvars.iter().cloned().chain(sc.genvars).collect();
 
-                //let sc_ = self.build_nested_scheme(impl_sc.clone(), sc);
                 let sc_ = self.with_tyenv(scenv.clone(), |ctx| ctx.build_scheme(sc));
 
                 let alts = self.build_alts(mi.1);

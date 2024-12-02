@@ -7,10 +7,8 @@
 println x = { puts . show x; puts "\n" };
 
 
-// TODO
-//   Problem 1: using a instead of b below conflicts with another a (presumably the one in the class def)
 
-impl Show forall (b : Show) => [b] {
+impl Show forall (a : Show) => [a] {
     show xs = let commasep (Nil) = ""
                          | (x :: (Nil)) = show x
                          | (x :: xs) = (show x) ++ ", " ++ (commasep xs)

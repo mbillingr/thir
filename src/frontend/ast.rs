@@ -2,8 +2,10 @@
 
 pub use crate::frontend::type_inference::Literal;
 use crate::type_checker::kinds::Kind;
-use crate::type_checker::Id;
+use crate::type_checker::{types, Id};
 use std::rc::Rc;
+use crate::frontend::ast;
+use crate::frontend::ast_to_typeck::TEnv;
 
 #[derive(Debug)]
 pub enum TopLevel {
@@ -176,6 +178,20 @@ impl Type {
     pub fn list(a: Type) -> Type {
         Type::Apply(Box::new(Type::Named("[]".into())), Box::new(a))
     }
+
+    pub fn rename(&mut self, varname: &str, newname: &str) {
+        match self {
+            Type::Named(name) => {
+                if name == varname {
+                    *name = newname.to_string();
+                }
+            }
+            Type::Apply(a, b) => {
+                a.rename(varname, newname);
+                b.rename(varname, newname);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -187,6 +203,16 @@ pub struct Scheme {
 impl Scheme {
     pub fn new(genvars: Vec<(Id, Kind, Vec<Id>)>, ty: Type) -> Self {
         Scheme { genvars, ty }
+    }
+
+    pub fn rename(&mut self, varname: &str, newname: &str) {
+        for (name, _, _) in &mut self.genvars {
+            if name == varname {
+                *name = newname.to_string();
+            }
+        }
+
+        self.ty.rename(varname, newname);
     }
 }
 
