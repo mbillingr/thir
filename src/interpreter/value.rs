@@ -235,9 +235,11 @@ impl Value {
                 let mut gathered_args = (**gathered_args).clone();
                 gathered_args.extend(args);
 
-                for (ty, value) in impls.borrow().iter() {
-                    if dispatch::type_matches(ty, &gathered_args[*dispatch_arg]) {
-                        return value.apply(gathered_args);
+                if gathered_args.len() > *dispatch_arg {
+                    for (ty, value) in impls.borrow().iter() {
+                        if dispatch::type_matches(ty, &gathered_args[*dispatch_arg]) {
+                            return value.apply(gathered_args);
+                        }
                     }
                 }
 
