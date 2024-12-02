@@ -105,6 +105,7 @@ pub enum Expr {
     Infix(Vec<InfixToken>),
 
     Lambda(Box<Alt>),
+    If(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug)]

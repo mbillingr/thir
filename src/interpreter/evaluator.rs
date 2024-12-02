@@ -96,6 +96,13 @@ impl Context {
                 }
                 self.eval_expr(expr, env)
             }
+            Expr::If(cond, t, f) => {
+                if self.eval_expr(cond, env).as_bool() {
+                    self.eval_expr(t, env)
+                } else {
+                    self.eval_expr(f, env)
+                }
+            }
         }
     }
 

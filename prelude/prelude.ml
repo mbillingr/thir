@@ -27,11 +27,13 @@ interface Foldable f : * -> * {
 }
 
 impl Foldable for [] {
-    foldr f init (Nil) = init
-        | f init (x :: xs) = f x (foldr f init xs);
+    foldr f init = let loop (Nil) = init
+                          | (x :: xs) = f x (loop xs)
+                   in loop;
 
-    foldl f init (Nil) = init
-        | f init (x :: xs) = foldl f (f init x) xs;
+    foldl f = let loop acc (Nil) = acc
+                     | acc (x :: xs) = loop (f acc x) xs
+              in loop;
 }
 
 
@@ -40,7 +42,7 @@ interface Functor f : * -> * {
 }
 
 impl Functor for [] {
-    map f = foldr ((::) . f) Nil;
+    map f = foldr ((::) . f) Nil;      
 }
 
 interface Filterable f : * -> * {
@@ -48,9 +50,10 @@ interface Filterable f : * -> * {
 }
 
 impl Filterable for [] {
-    filter p (Nil) = Nil | p (x :: xs) = let select true  fxs = x :: fxs 
-                                                  | false fxs =      fxs
-                                         in select (p x) (filter p xs);
+    filter p = let loop (Nil) = Nil | (x :: xs) = if (p x) then x :: (loop xs) else (loop xs) in loop;
+    
+    // this is a bit slower:
+    //filter p = foldr (fun x fxs = if (p x) then x :: fxs else fxs) Nil;
 }
 
 

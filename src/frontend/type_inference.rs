@@ -121,6 +121,8 @@ pub enum Expr {
     App(Rc<Expr>, Rc<Expr>),
     Let(BindGroup, Rc<Expr>),
     Sequence(Rc<Vec<Expr>>, Rc<Expr>),
+
+    If(Rc<Expr>, Rc<Expr>, Rc<Expr>),
 }
 
 pub fn ti_expr(
@@ -166,6 +168,20 @@ pub fn ti_expr(
             }
 
             (ps, t)
+        }
+
+        Expr::If(cond, then, else_) => {
+            let (ps1, t1) = ti_expr(ti, ce, ass, cond)?;
+            let (ps2, t2) = ti_expr(ti, ce, ass, then)?;
+            let (ps3, t3) = ti_expr(ti, ce, ass, else_)?;
+            ti.unify(&t1, &Type::t_bool())?;
+            ti.unify(&t2, &t3)?;
+
+            let mut ps = ps1;
+            ps.extend(ps2);
+            ps.extend(ps3);
+
+            (ps, t2)
         }
     };
 

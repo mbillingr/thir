@@ -151,6 +151,13 @@ impl Runner {
                     Rc::new(si::Expr::Var(name)),
                 )
             }
+
+            ast::Expr::If(cond, then, else_) => {
+                let cond = self.build_expr(*cond);
+                let then = self.build_expr(*then);
+                let else_ = self.build_expr(*else_);
+                si::Expr::If(Rc::new(cond), Rc::new(then), Rc::new(else_))
+            }
         }
     }
 

@@ -191,6 +191,11 @@ Expr: ast::Expr = {
     InfixExpr => ast::Expr::Infix(<>),
     "let" <BindGroup> "in" <Expr> => ast::Expr::let_(<>),
     "fun" <Alt> => ast::Expr::Lambda(Box::new(<>)),
+    "if" <BoxedExpr> "then" <BoxedExpr> "else" <BoxedExpr> => ast::Expr::If(<>),
+}
+
+BoxedExpr: Box<ast::Expr> = {
+    <Expr> => Box::new(<>),
 }
 
 InfixExpr: Vec<ast::InfixToken> = {
