@@ -64,15 +64,16 @@ impl Context {
 
                 // I guess this can be considered static dispatch
                 if let Value::Method(_, dispatch_arg, impls, args) = &val {
+                    // if it has args, the method is already in the process of being dynamically dispatched
                     if args.is_empty() {
-                        // if it has args, the method is in the process of being dynamically dispatched
                         if let Some(t) = self.ti.get_annotation(expr) {
+                            let (argtys, _) = t.fn_types();
+                            let t = argtys[*dispatch_arg];
                             for (ty, value) in impls.borrow().iter() {
-                                if dispatch::type_matches_type(ty, &t) {
+                                if dispatch::type_matches_type(ty, t) {
                                     return value.clone();
                                 }
                             }
-                            //println!("WARNING: no method matched for {:?}", t);
                         }
                     }
                 }
