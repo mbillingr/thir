@@ -168,7 +168,7 @@ impl Runner {
 
         let assumptions = vec![];
 
-        let value_env = HashMap::new();
+        let value_env = interpreter::Env::default();
 
         let constructors = vec![];
 

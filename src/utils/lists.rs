@@ -66,6 +66,12 @@ impl<T: Debug> Debug for List<T> {
     }
 }
 
+impl<T> Default for List<T> {
+    fn default() -> Self {
+        List::Nil
+    }
+}
+
 impl<T> List<T> {
     pub fn cons(&self, x: T) -> Self {
         List::Elem(Rc::new((x, self.clone())))

@@ -5,5 +5,6 @@ mod value;
 pub use evaluator::Context;
 use std::collections::HashMap;
 pub use value::Value;
+use crate::utils::assoc_list::AssocList;
 
-pub type Env = HashMap<String, Value>;
+pub type Env = AssocList<String, Value>;
