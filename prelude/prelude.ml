@@ -56,9 +56,40 @@ impl Filterable for [] {
     //filter p = foldr (fun x fxs = if (p x) then x :: fxs else fxs) Nil;
 }
 
+all p = let loop (Nil) = true
+               | (x :: xs) = if p x then loop xs else false
+        in loop;
+
+any p = let loop (Nil) = false
+               | (x :: xs) = if p x then true else loop xs
+        in loop;
+
+len : forall a (l :  * -> * Foldable) => (l a) -> Int;
+len = foldl (fun acc _ = acc + 1) 0;
+
+take n (Nil) = Nil
+   | 0 _ = Nil
+   | n (x :: xs) = x :: (take (n - 1) xs);
 
 sort (Nil) = Nil
    | (x :: (Nil)) = [x]
    | (p :: xs) = (sort (filter (<= p) xs)) ++ [p] ++ (sort (filter (> p) xs))
 ;
 
+larger x y = if y > x then y else x;
+smaller x y = if y < x then y else x;
+
+max (x :: xs) = foldl larger x xs;
+min (x :: xs) = foldl smaller x xs;
+
+(&&) a b = if a then b else false;
+(||) a b = if a then true else b;
+
+// predicate composition
+(.&.) f g x = if f x then g x else false;
+(.|.) f g x = if f x then true else g x;
+
+
+diff (x :: (y :: ys) as xs) = (y - x) :: (diff xs)
+   | (x :: xs) = Nil
+   | (Nil) = Nil;
