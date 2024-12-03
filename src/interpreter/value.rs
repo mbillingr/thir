@@ -4,6 +4,7 @@ use crate::interpreter::{dispatch, Env};
 use crate::type_checker;
 use crate::type_checker::types;
 use std::cell::RefCell;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 #[derive(Clone, Debug)]
@@ -18,7 +19,9 @@ pub enum Value {
     F64(f64),
     String(Rc<str>),
 
-    Closure(Closure),
+    Dict(Rc<im_rc::HashMap<Value, Value>>),
+
+    Closure(Rc<Closure>),
 
     Constructor(Rc<types::Type>, Rc<str>, Rc<Vec<Value>>),
 
@@ -66,6 +69,22 @@ impl Value {
         match self {
             Value::Boxed(bx) => bx.borrow().resolve(),
             _ => self.clone(),
+        }
+    }
+
+    pub fn dict() -> Self {
+        Value::Dict(Default::default())
+    }
+
+    pub fn dict_insert(&self, key: Value, value: Value) -> Self {
+        match self {
+            Value::Boxed(bx) => bx.borrow().dict_insert(key, value),
+            Value::Dict(dict) => {
+                let mut dict = (**dict).clone();
+                dict.insert(key, value);
+                Value::Dict(Rc::new(dict))
+            },
+            _ => panic!("expected dict"),
         }
     }
 
@@ -195,23 +214,24 @@ impl Value {
                 (prim.f)(&gathered_args)
             }
 
-            Value::Closure(Closure {
-                alts,
-                env,
-                ctx,
-                gathered_args,
-            }) => {
+            Value::Closure(cls) => {
+                let Closure {
+                    alts,
+                    env,
+                    ctx,
+                    gathered_args,
+                } = &**cls;
                 let mut gathered_args = gathered_args.clone();
                 gathered_args.extend(args);
 
                 'next_alternative: for Alt(pats, body) in alts.iter() {
                     if gathered_args.len() < pats.len() {
-                        return Value::Closure(Closure {
+                        return Value::Closure(Rc::new(Closure {
                             alts: alts.clone(),
                             env: env.clone(),
                             ctx: ctx.clone(),
                             gathered_args,
-                        });
+                        }));
                     }
 
                     let mut local_env = env.clone();
@@ -263,6 +283,14 @@ impl std::fmt::Display for Value {
             Value::Char(ch) => write!(f, "{}", ch),
             Value::F64(x) => write!(f, "{}", x),
             Value::String(s) => write!(f, "{:?}", s),
+            Value::Dict(dict) => write!(
+                f,
+                "{}",
+                dict.iter()
+                    .map(|(k, v)| format!("{}: {}", k, v))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             Value::Closure(c) => write!(f, "{:?}", c),
             Value::Constructor(_, tag, fields) => {
                 write!(f, "{}", tag)?;
@@ -326,5 +354,51 @@ pub struct Primitive {
 impl std::fmt::Debug for Primitive {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "<primitive {}>", self.name)
+    }
+}
+
+
+impl Hash for Value {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Value::Uninitialized => {}
+            Value::Boxed(rc) => Rc::as_ptr(rc).hash(state),
+            Value::Unit => ().hash(state),
+            Value::Bool(b) => b.hash(state),
+            Value::Int(x) => x.hash(state),
+            Value::Char(ch) => ch.hash(state),
+            Value::F64(_) => unimplemented!(),
+            Value::String(s) => s.hash(state),
+            Value::Dict(_) => unimplemented!(),
+            Value::Closure(cls) => Rc::as_ptr(cls).hash(state),
+            Value::Constructor(_, _, _) => unimplemented!(),
+            Value::Method(_, _, _, _) => unimplemented!(),
+            Value::Primitive(p, args) => {p.f.hash(state); Rc::as_ptr(args).hash(state);},
+        }
+    }
+}
+
+impl Eq for Value {}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Uninitialized, Value::Uninitialized) => true,
+            (Value::Boxed(a), Value::Boxed(b)) => Rc::ptr_eq(a, b),
+            (Value::Unit, Value::Unit) => true,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Int(a), Value::Int(b)) => a == b,
+            (Value::Char(a), Value::Char(b)) => a == b,
+            (Value::F64(a), Value::F64(b)) => a == b,
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::Dict(a), Value::Dict(b)) => a == b,
+            (Value::Closure(a), Value::Closure(b)) => Rc::ptr_eq(a, b),
+            (Value::Constructor(_, a, b), Value::Constructor(_, c, d)) => a == c && b == d,
+            (Value::Method(a, b, c, d), Value::Method(e, f, g, h)) => {
+                a == e && b == f && Rc::ptr_eq(c, g) && h == d
+            }
+            (Value::Primitive(a, b), Value::Primitive(c, d)) => a.f == c.f && Rc::ptr_eq(b, d),
+            _ => false,
+        }
     }
 }

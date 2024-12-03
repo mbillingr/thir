@@ -45,12 +45,12 @@ impl Context {
             return self.eval_expr(&alts[0].1, env);
         }
 
-        Value::Closure(Closure {
+        Value::Closure(Rc::new(Closure {
             alts: alts.clone(),
             env: env.clone(),
             ctx: self.clone(),
             gathered_args: vec![],
-        })
+        }))
     }
 
     pub fn eval_expr(&self, expr: &Expr, env: &Env) -> Value {

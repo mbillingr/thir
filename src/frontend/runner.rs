@@ -164,6 +164,7 @@ impl Runner {
         tenv.insert("Int".into(), Type::t_int());
         tenv.insert("Float".into(), Type::t_float());
         tenv.insert("String".into(), Type::t_string());
+        tenv.insert("Dict".into(), Type::t_dict());
 
         let assumptions = vec![];
 
@@ -341,6 +342,27 @@ impl Runner {
 
             define_comparison_operator!(self, "Cmp", "==", ==, "!=", !=);
             define_comparison_operator!(self, "Ord" <: "Cmp", "<", <, ">", >, "<=", <=, ">=", >=);
+
+            self.define_primitive("dict", "forall a b => () -> Dict a b", |_|{
+                interpreter::Value::dict()
+            });
+
+            self.define_class(
+                grammar::DefClassParser::new()
+                    .parse("interface Hashable a { }")
+                    .unwrap(),
+            )
+                .unwrap();
+
+            self.primitive_class_impl("Hashable", "Int", vec![]);
+
+            self.define_primitive("dict-insert", "forall (a : Hashable) b => a -> b -> Dict a b -> Dict a b", |args|{
+                let k = args[0].clone();
+                let v = args[1].clone();
+                let dict = args[2].clone();
+                dict.dict_insert(k, v)
+            });
+
         }
     }
 
