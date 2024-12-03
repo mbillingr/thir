@@ -237,6 +237,21 @@ impl Runner {
                 }
                 result
             });
+            self.define_primitive("split-chars", "String -> [String]", |args| {
+                let strlist = Type::list(Type::t_string());
+                let s = args[0].as_string();
+
+                let mut result = interpreter::Value::constructor(strlist.clone(), "Nil");
+                for part in s.chars().rev() {
+                    let p = interpreter::Value::String(part.to_string().into());
+                    result = interpreter::Value::applied_constructor(
+                        strlist.clone(),
+                        "::",
+                        vec![p, result],
+                    );
+                }
+                result
+            });
 
             // Add a primitive function for converting strings to integers
             self.define_primitive("atoi", "String -> Int", |args| {
