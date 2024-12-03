@@ -95,3 +95,6 @@ diff (x :: (y :: ys) as xs) = (y - x) :: (diff xs)
    | (Nil) = Nil;
 
 str-join strs = foldl (++) "" strs;
+
+split-whitespace = str-find-all "\\S+";
+split-chars = str-find-all ".";

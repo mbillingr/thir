@@ -222,37 +222,7 @@ impl Runner {
                 interpreter::Value::String(s.into())
             });
 
-            // Add a primitive functions for splitting strings
-            self.define_primitive("split-whitespace", "String -> [String]", |args| {
-                let strlist = Type::list(Type::t_string());
-                let s = args[0].as_string();
-
-                let mut result = interpreter::Value::constructor(strlist.clone(), "Nil");
-                for part in s.split_whitespace().rev() {
-                    let p = interpreter::Value::String(part.into());
-                    result = interpreter::Value::applied_constructor(
-                        strlist.clone(),
-                        "::",
-                        vec![p, result],
-                    );
-                }
-                result
-            });
-            self.define_primitive("split-chars", "String -> [String]", |args| {
-                let strlist = Type::list(Type::t_string());
-                let s = args[0].as_string();
-
-                let mut result = interpreter::Value::constructor(strlist.clone(), "Nil");
-                for part in s.chars().rev() {
-                    let p = interpreter::Value::String(part.to_string().into());
-                    result = interpreter::Value::applied_constructor(
-                        strlist.clone(),
-                        "::",
-                        vec![p, result],
-                    );
-                }
-                result
-            });
+            // Regex string search
             self.define_primitive("str-find-all", "String -> String -> [String]", |args| {
                 let strlist = Type::list(Type::t_string());
                 let pattern = args[0].as_string();
