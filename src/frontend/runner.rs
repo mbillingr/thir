@@ -252,6 +252,24 @@ impl Runner {
                 }
                 result
             });
+            self.define_primitive("str-find-all", "String -> String -> [String]", |args| {
+                let strlist = Type::list(Type::t_string());
+                let pattern = args[0].as_string();
+                let haystack = args[1].as_string();
+
+                let re = regex::Regex::new(&pattern).unwrap();
+
+                let mut result = interpreter::Value::constructor(strlist.clone(), "Nil");
+                for part in re.find_iter(&haystack) {
+                    let p = interpreter::Value::String(part.as_str().into());
+                    result = interpreter::Value::applied_constructor(
+                        strlist.clone(),
+                        "::",
+                        vec![p, result],
+                    );
+                }
+                result
+            });
 
             // Add a primitive function for converting strings to integers
             self.define_primitive("atoi", "String -> Int", |args| {
