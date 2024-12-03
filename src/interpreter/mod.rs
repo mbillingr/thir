@@ -1,9 +1,9 @@
 mod dispatch;
 mod evaluator;
-mod value;
+pub mod value;
 
+use crate::utils::assoc_list::AssocList;
 pub use evaluator::Context;
 pub use value::Value;
-use crate::utils::assoc_list::AssocList;
 
 pub type Env = AssocList<String, Value>;

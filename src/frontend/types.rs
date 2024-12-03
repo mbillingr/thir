@@ -41,7 +41,10 @@ impl Type {
 
     /// construct the dict type constructor
     pub fn t_dict() -> Self {
-        Type::TCon(Tycon("Dict".into(), Kind::kfun(Kind::Star, Kind::kfun(Kind::Star, Kind::Star))))
+        Type::TCon(Tycon(
+            "Dict".into(),
+            Kind::kfun(Kind::Star, Kind::kfun(Kind::Star, Kind::Star)),
+        ))
     }
 
     /// construct the function type constructor
@@ -61,4 +64,9 @@ impl Type {
     pub fn list(t: Type) -> Type {
         Type::tapp(Type::t_list(), t)
     }
+
+    /*/// construct a dict type
+    pub fn dict(k: Type, v: Type) -> Type {
+        Type::tapp(Type::tapp(Type::t_dict(), k), v)
+    }*/
 }

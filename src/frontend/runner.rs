@@ -72,6 +72,10 @@ macro_rules! type_from_value {
     (Float, $x:expr) => {
         interpreter::Value::as_float($x)
     };
+
+    (String, $x:expr) => {
+        interpreter::Value::as_string($x)
+    };
 }
 
 macro_rules! type_to_value {
@@ -85,6 +89,10 @@ macro_rules! type_to_value {
 
     (Float) => {
         interpreter::Value::F64
+    };
+
+    (String) => {
+        interpreter::Value::String
     };
 }
 
@@ -142,6 +150,7 @@ macro_rules! define_comparison_operator {
         define_comparison_impl!($ctx, $cls, Bool $(, $op, $rustop)*);
         define_comparison_impl!($ctx, $cls, Int $(, $op, $rustop)*);
         define_comparison_impl!($ctx, $cls, Float $(, $op, $rustop)*);
+        define_comparison_impl!($ctx, $cls, String $(, $op, $rustop)*);
     };
 
     ($ctx:expr, $cls:literal, $($rest:tt)*) => {
@@ -165,6 +174,10 @@ impl Runner {
         tenv.insert("Float".into(), Type::t_float());
         tenv.insert("String".into(), Type::t_string());
         tenv.insert("Dict".into(), Type::t_dict());
+        tenv.insert(
+            "Hasher".into(),
+            Type::TCon(Tycon("Hasher".into(), Kind::Star)),
+        );
 
         let assumptions = vec![];
 
@@ -224,7 +237,6 @@ impl Runner {
 
             // Regex string search
             self.define_primitive("str-find-all", "String -> String -> [String]", |args| {
-                let strlist = Type::list(Type::t_string());
                 let pattern = args[0].as_string();
                 let haystack = args[1].as_string();
 
@@ -236,15 +248,7 @@ impl Runner {
                     .map(|part| interpreter::Value::String(part.into()))
                     .collect();
 
-                let mut result = interpreter::Value::constructor(strlist.clone(), "Nil");
-                for part in parts.into_iter().rev() {
-                    result = interpreter::Value::applied_constructor(
-                        strlist.clone(),
-                        "::",
-                        vec![part, result],
-                    );
-                }
-                result
+                interpreter::Value::make_list(parts.into_iter())
             });
 
             // Add a primitive function for converting strings to integers
@@ -318,18 +322,46 @@ impl Runner {
             define_comparison_operator!(self, "Cmp", "==", ==, "!=", !=);
             define_comparison_operator!(self, "Ord" <: "Cmp", "<", <, ">", >, "<=", <=, ">=", >=);
 
-            self.define_primitive("dict", "forall a b => () -> Dict a b", |_| {
-                interpreter::Value::dict()
+            let eq_fn = self.value_env.get("==").unwrap().clone();
+            interpreter::value::GLOBAL_EQ_FN.with_borrow_mut(|global| {
+                *global = Some(eq_fn);
             });
 
             self.define_class(
                 grammar::DefClassParser::new()
-                    .parse("interface Hashable a { }")
+                    .parse("interface Hashable a : Cmp { hash : a -> Int; }")
                     .unwrap(),
             )
             .unwrap();
 
-            self.primitive_class_impl("Hashable", "Int", vec![]);
+            let hash_fn = self.value_env.get("hash").unwrap().clone();
+            interpreter::value::GLOBAL_HASH_FN.with_borrow_mut(|global| {
+                *global = Some(hash_fn);
+            });
+
+            self.primitive_class_impl(
+                "Hashable",
+                "Int",
+                vec![(
+                    "hash",
+                    "Int -> Hasher -> ()",
+                    interpreter::Value::primitive("hash-int", 2, |_| unimplemented!()),
+                )],
+            );
+
+            self.primitive_class_impl(
+                "Hashable",
+                "String",
+                vec![(
+                    "hash",
+                    "String -> Hasher -> ()",
+                    interpreter::Value::primitive("hash-str", 2, |_| unimplemented!()),
+                )],
+            );
+
+            self.define_primitive("dict", "forall a b => () -> Dict a b", |_| {
+                interpreter::Value::dict()
+            });
 
             self.define_primitive(
                 "dict-insert",
@@ -339,6 +371,34 @@ impl Runner {
                     let v = args[1].clone();
                     let dict = args[2].clone();
                     dict.dict_insert(k, v)
+                },
+            );
+
+            self.define_primitive(
+                "dict-get",
+                "forall (a : Hashable) b => a -> Dict a b -> b",
+                |args| {
+                    let k = args[0].clone();
+                    let dict = args[1].clone();
+                    dict.as_dict().unwrap().get(&k).unwrap().clone()
+                },
+            );
+
+            self.define_primitive(
+                "dict-keys",
+                "forall (a : Hashable) b => Dict a b -> [a]",
+                |args| {
+                    let dict = args[0].clone();
+                    interpreter::Value::make_list_reverse(dict.as_dict().unwrap().keys().cloned())
+                },
+            );
+
+            self.define_primitive(
+                "dict-values",
+                "forall (a : Hashable) b => Dict a b -> [b]",
+                |args| {
+                    let dict = args[0].clone();
+                    interpreter::Value::make_list_reverse(dict.as_dict().unwrap().values().cloned())
                 },
             );
         }

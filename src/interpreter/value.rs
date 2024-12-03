@@ -7,6 +7,11 @@ use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
+thread_local! {
+    pub static GLOBAL_HASH_FN: RefCell<Option<Value>> = Default::default();
+    pub static GLOBAL_EQ_FN: RefCell<Option<Value>> = Default::default();
+}
+
 #[derive(Clone, Debug)]
 pub enum Value {
     Uninitialized,
@@ -46,6 +51,17 @@ impl Value {
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::String(_)) => tn == "String",
             (ty, Value::Constructor(tc, _, _)) => types::Type::soft_eq(tc, ty),
             (TGen(_), _) => true,
+            (TApp(rc), Value::Dict(_)) => {
+                if let TApp(rc2) = &rc.0 {
+                    if let TCon(Tycon(tn, _)) = &rc2.0 {
+                        tn == "Dict"
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
             _ => false, //todo!("{:?} {:?}", ty, self),
         }
     }
@@ -83,8 +99,16 @@ impl Value {
                 let mut dict = (**dict).clone();
                 dict.insert(key, value);
                 Value::Dict(Rc::new(dict))
-            },
+            }
             _ => panic!("expected dict"),
+        }
+    }
+
+    pub fn as_dict(&self) -> Option<Rc<im_rc::HashMap<Value, Value>>> {
+        match self {
+            Value::Boxed(bx) => bx.borrow().as_dict(),
+            Value::Dict(dict) => Some(dict.clone()),
+            _ => None,
         }
     }
 
@@ -106,6 +130,19 @@ impl Value {
             Value::Constructor(_, tag, fields) => Some((tag.clone(), fields.clone())),
             _ => None,
         }
+    }
+
+    pub fn make_list(items: impl DoubleEndedIterator<Item = Value>) -> Self {
+        Self::make_list_reverse(items.rev())
+    }
+
+    pub fn make_list_reverse(items: impl Iterator<Item = Value>) -> Self {
+        let strlist = types::Type::list(types::Type::t_string());
+        let mut result = Value::constructor(strlist.clone(), "Nil");
+        for item in items {
+            result = Value::applied_constructor(strlist.clone(), "::", vec![item, result]);
+        }
+        result
     }
 
     pub fn method(name: impl Into<Rc<str>>, dispatch_arg: usize) -> Self {
@@ -187,7 +224,7 @@ impl Value {
         match self {
             Value::Boxed(bx) => bx.borrow().as_string(),
             Value::String(s) => s.clone(),
-            _ => panic!("expected string"),
+            _ => panic!("expected string {:?}", self),
         }
     }
 
@@ -265,7 +302,12 @@ impl Value {
                     }
                 }
 
-                Value::Method(name.clone(), *dispatch_arg, impls.clone(), Rc::new(gathered_args))
+                Value::Method(
+                    name.clone(),
+                    *dispatch_arg,
+                    impls.clone(),
+                    Rc::new(gathered_args),
+                )
             }
             _ => panic!("non-callable value {}", self),
         }
@@ -357,7 +399,6 @@ impl std::fmt::Debug for Primitive {
     }
 }
 
-
 impl Hash for Value {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
@@ -371,9 +412,17 @@ impl Hash for Value {
             Value::String(s) => s.hash(state),
             Value::Dict(_) => unimplemented!(),
             Value::Closure(cls) => Rc::as_ptr(cls).hash(state),
-            Value::Constructor(_, _, _) => unimplemented!(),
             Value::Method(_, _, _, _) => unimplemented!(),
-            Value::Primitive(p, args) => {p.f.hash(state); Rc::as_ptr(args).hash(state);},
+            Value::Primitive(p, args) => {
+                p.f.hash(state);
+                Rc::as_ptr(args).hash(state);
+            }
+            Value::Constructor(_, _, _) => {
+                GLOBAL_HASH_FN.with_borrow(|fn_| {
+                    let fn_ = fn_.as_ref().unwrap();
+                    fn_.apply(vec![self.clone()]).hash(state);
+                });
+            }
         }
     }
 }
@@ -393,11 +442,16 @@ impl PartialEq for Value {
             (Value::String(a), Value::String(b)) => a == b,
             (Value::Dict(a), Value::Dict(b)) => a == b,
             (Value::Closure(a), Value::Closure(b)) => Rc::ptr_eq(a, b),
-            (Value::Constructor(_, a, b), Value::Constructor(_, c, d)) => a == c && b == d,
             (Value::Method(a, b, c, d), Value::Method(e, f, g, h)) => {
                 a == e && b == f && Rc::ptr_eq(c, g) && h == d
             }
             (Value::Primitive(a, b), Value::Primitive(c, d)) => a.f == c.f && Rc::ptr_eq(b, d),
+            (Value::Constructor(_, _, _), Value::Constructor(_, _, _)) => {
+                GLOBAL_EQ_FN.with_borrow(|fn_| {
+                    let fn_ = fn_.as_ref().unwrap();
+                    fn_.apply(vec![self.clone(), other.clone()]).as_bool()
+                })
+            }
             _ => false,
         }
     }

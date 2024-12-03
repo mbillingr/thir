@@ -15,6 +15,13 @@ impl Show forall (a : Show) => [a] {
               in "[" ++ (commasep xs) ++ "]";
 }
 
+impl Show forall (a : Show Hashable) (b : Show) => Dict a b {
+    show kvs = let commasep (Nil) (Nil) = ""
+                          | (k :: (Nil)) (v :: (Nil)) = (show k) ++ ": " ++ (show v)
+                          | (k :: ks) (v :: vs) = (show k) ++ ": " ++ (show v) ++ ", " ++ (commasep ks vs)
+               in "{" ++ (commasep (dict-keys kvs) (dict-values kvs)) ++ "}";
+}
+
 impl Concatenate forall b => [b] {
     (++)     (Nil) rhs = rhs
        | (x :: xs) rhs = x :: (xs ++ rhs);
