@@ -260,13 +260,18 @@ impl Runner {
 
                 let re = regex::Regex::new(&pattern).unwrap();
 
+                let parts: Vec<_> = re
+                    .find_iter(&haystack)
+                    .map(|part| part.as_str().to_string())
+                    .map(|part| interpreter::Value::String(part.into()))
+                    .collect();
+
                 let mut result = interpreter::Value::constructor(strlist.clone(), "Nil");
-                for part in re.find_iter(&haystack) {
-                    let p = interpreter::Value::String(part.as_str().into());
+                for part in parts.into_iter().rev() {
                     result = interpreter::Value::applied_constructor(
                         strlist.clone(),
                         "::",
-                        vec![p, result],
+                        vec![part, result],
                     );
                 }
                 result
@@ -343,7 +348,7 @@ impl Runner {
             define_comparison_operator!(self, "Cmp", "==", ==, "!=", !=);
             define_comparison_operator!(self, "Ord" <: "Cmp", "<", <, ">", >, "<=", <=, ">=", >=);
 
-            self.define_primitive("dict", "forall a b => () -> Dict a b", |_|{
+            self.define_primitive("dict", "forall a b => () -> Dict a b", |_| {
                 interpreter::Value::dict()
             });
 
@@ -352,17 +357,20 @@ impl Runner {
                     .parse("interface Hashable a { }")
                     .unwrap(),
             )
-                .unwrap();
+            .unwrap();
 
             self.primitive_class_impl("Hashable", "Int", vec![]);
 
-            self.define_primitive("dict-insert", "forall (a : Hashable) b => a -> b -> Dict a b -> Dict a b", |args|{
-                let k = args[0].clone();
-                let v = args[1].clone();
-                let dict = args[2].clone();
-                dict.dict_insert(k, v)
-            });
-
+            self.define_primitive(
+                "dict-insert",
+                "forall (a : Hashable) b => a -> b -> Dict a b -> Dict a b",
+                |args| {
+                    let k = args[0].clone();
+                    let v = args[1].clone();
+                    let dict = args[2].clone();
+                    dict.dict_insert(k, v)
+                },
+            );
         }
     }
 
@@ -461,7 +469,11 @@ impl Runner {
             // insert the "self" type as the first generic
             sc.genvars.insert(
                 0,
-                (class.varname.clone(), class.kind.clone(), vec![class.name.clone()]),
+                (
+                    class.varname.clone(),
+                    class.kind.clone(),
+                    vec![class.name.clone()],
+                ),
             );
             let sc = self.build_scheme(sc);
 
