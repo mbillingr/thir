@@ -10,4 +10,5 @@ lalrpop = "0.22"
 
 [dependencies]
 lalrpop-util = { version = "0.22", features = ["lexer", "unicode"] }
+num = "0.4"
 regex = "1"

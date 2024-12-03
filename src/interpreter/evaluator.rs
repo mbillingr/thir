@@ -110,7 +110,7 @@ impl Context {
         match lit {
             Literal::Unit => Value::boxed(Value::Unit),
             Literal::Bool(b) => Value::Bool(*b),
-            Literal::Int(x) => Value::I64(*x),
+            Literal::Int(x) => Value::int(*x),
             Literal::Char(ch) => Value::Char(*ch),
             Literal::Rat(x) => Value::F64(*x),
             Literal::Str(s) => Value::String(s.clone()),
@@ -158,7 +158,7 @@ impl Context {
         match lit {
             Literal::Unit => val.is_unit(),
             Literal::Bool(b) => val.as_bool() == *b,
-            Literal::Int(x) => val.as_int() == *x,
+            Literal::Int(x) => *val.as_int() == (*x).into(),
             Literal::Char(ch) => val.as_char() == *ch,
             Literal::Rat(x) => val.as_float() == *x,
             Literal::Str(s) => val.as_string() == *s,

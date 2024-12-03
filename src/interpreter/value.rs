@@ -13,7 +13,7 @@ pub enum Value {
 
     Unit,
     Bool(bool),
-    I64(i64),
+    Int(Rc<num::BigInt>),
     Char(char),
     F64(f64),
     String(Rc<str>),
@@ -37,7 +37,7 @@ impl Value {
         use type_checker::types::{Tycon, Type::*, Tyvar};
         match (ty, self) {
             (ty, Value::Boxed(bx)) => bx.borrow().is_a(ty),
-            (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::I64(_)) => tn == "Int",
+            (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::Int(_)) => tn == "Int",
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::Char(_)) => tn == "Char",
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::F64(_)) => tn == "Double",
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::String(_)) => tn == "String",
@@ -45,6 +45,10 @@ impl Value {
             (TGen(_), _) => true,
             _ => false, //todo!("{:?} {:?}", ty, self),
         }
+    }
+
+    pub fn int(x: impl Into<num::BigInt>) -> Self {
+        Value::Int(Rc::new(x.into()))
     }
 
     pub fn boxed(self) -> Self {
@@ -136,10 +140,10 @@ impl Value {
         }
     }
 
-    pub fn as_int(&self) -> i64 {
+    pub fn as_int(&self) -> Rc<num::BigInt> {
         match self {
             Value::Boxed(bx) => bx.borrow().as_int(),
-            Value::I64(x) => *x,
+            Value::Int(x) => x.clone(),
             _ => panic!("expected int"),
         }
     }
@@ -255,7 +259,7 @@ impl std::fmt::Display for Value {
             Value::Boxed(bx) => write!(f, "@{:?}", bx.borrow()),
             Value::Unit => write!(f, "()"),
             Value::Bool(x) => write!(f, "{}", x),
-            Value::I64(x) => write!(f, "{}", x),
+            Value::Int(x) => write!(f, "{}", x),
             Value::Char(ch) => write!(f, "{}", ch),
             Value::F64(x) => write!(f, "{}", x),
             Value::String(s) => write!(f, "{:?}", s),

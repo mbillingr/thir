@@ -61,16 +61,16 @@ macro_rules! define_class {
 }
 
 macro_rules! type_from_value {
-    (Bool) => {
-        interpreter::Value::as_bool
+    (Bool, $x:expr) => {
+        interpreter::Value::as_bool($x)
     };
 
-    (Int) => {
-        interpreter::Value::as_int
+    (Int, $x:expr) => {
+        &*interpreter::Value::as_int($x)
     };
 
-    (Float) => {
-        interpreter::Value::as_float
+    (Float, $x:expr) => {
+        interpreter::Value::as_float($x)
     };
 }
 
@@ -80,7 +80,7 @@ macro_rules! type_to_value {
     };
 
     (Int) => {
-        interpreter::Value::I64
+        interpreter::Value::int
     };
 
     (Float) => {
@@ -97,8 +97,8 @@ macro_rules! define_arithmetic_impl {
                 $op,
                 concat!(stringify!($ty), " -> ", stringify!($ty), " -> ", stringify!($ty)),
                 interpreter::Value::primitive(concat!(stringify!($ty), $op, stringify!($ty)), 2, |args| {
-                    let a = type_from_value!($ty)(&args[0]);
-                    let b = type_from_value!($ty)(&args[1]);
+                    let a = type_from_value!($ty, &args[0]);
+                    let b = type_from_value!($ty, &args[1]);
                     type_to_value!($ty)(a $rustop b)
                 }),
             )),*],
@@ -127,8 +127,8 @@ macro_rules! define_comparison_impl {
                 $op,
                 concat!(stringify!($ty), " -> ", stringify!($ty), " -> Bool"),
                 interpreter::Value::primitive(concat!(stringify!($ty), $op, stringify!($ty)), 2, |args| {
-                    let a = type_from_value!($ty)(&args[0]);
-                    let b = type_from_value!($ty)(&args[1]);
+                    let a = type_from_value!($ty, &args[0]);
+                    let b = type_from_value!($ty, &args[1]);
                     type_to_value!(Bool)(a $rustop b)
                 }),
             )),*],
@@ -274,8 +274,8 @@ impl Runner {
             // Add a primitive function for converting strings to integers
             self.define_primitive("atoi", "String -> Int", |args| {
                 let s = args[0].as_string();
-                let i = s.parse::<i64>().unwrap();
-                interpreter::Value::I64(i)
+                let i = s.parse::<num::BigInt>().unwrap();
+                interpreter::Value::int(i)
             });
 
             // Add type class for converting values to string
