@@ -93,3 +93,5 @@ min (x :: xs) = foldl smaller x xs;
 diff (x :: (y :: ys) as xs) = (y - x) :: (diff xs)
    | (x :: xs) = Nil
    | (Nil) = Nil;
+
+str-join strs = foldl (++) "" strs;
