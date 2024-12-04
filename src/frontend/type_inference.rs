@@ -123,6 +123,7 @@ pub enum Expr {
     Sequence(Rc<Vec<Expr>>, Rc<Expr>),
 
     If(Rc<Expr>, Rc<Expr>, Rc<Expr>),
+    While(Rc<Expr>, Rc<Expr>),
 }
 
 pub fn ti_expr(
@@ -182,6 +183,18 @@ pub fn ti_expr(
             ps.extend(ps3);
 
             (ps, t2)
+        }
+
+        Expr::While(cond, body) => {
+            let (ps1, t1) = ti_expr(ti, ce, ass, cond)?;
+            let (ps2, t2) = ti_expr(ti, ce, ass, body)?;
+            ti.unify(&t1, &Type::t_bool())?;
+            ti.unify(&t2, &Type::t_unit())?;
+
+            let mut ps = ps1;
+            ps.extend(ps2);
+
+            (ps, Type::t_unit())
         }
     };
 

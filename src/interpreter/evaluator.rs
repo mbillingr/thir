@@ -103,6 +103,12 @@ impl Context {
                     self.eval_expr(f, env)
                 }
             }
+            Expr::While(cond, body) => {
+                while self.eval_expr(cond, env).as_bool() {
+                    self.eval_expr(body, env);
+                }
+                Value::Unit
+            }
         }
     }
 

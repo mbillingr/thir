@@ -158,6 +158,12 @@ impl Runner {
                 let else_ = self.build_expr(*else_);
                 si::Expr::If(Rc::new(cond), Rc::new(then), Rc::new(else_))
             }
+
+            ast::Expr::While(cond, body) => {
+                let cond = self.build_expr(*cond);
+                let body = self.build_expr(*body);
+                si::Expr::While(Rc::new(cond), Rc::new(body))
+            }
         }
     }
 

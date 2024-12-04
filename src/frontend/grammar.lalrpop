@@ -194,6 +194,7 @@ Expr: ast::Expr = {
     "let" <BindGroup> "in" <Expr> => ast::Expr::let_(<>),
     "fun" <Alt> => ast::Expr::Lambda(Box::new(<>)),
     "if" <BoxedExpr> "then" <BoxedExpr> "else" <BoxedExpr> => ast::Expr::If(<>),
+    "while" <BoxedExpr> "do" <BoxedExpr> => ast::Expr::While(<>),
 }
 
 BoxedExpr: Box<ast::Expr> = {

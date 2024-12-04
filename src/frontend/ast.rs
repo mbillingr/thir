@@ -2,7 +2,7 @@
 
 pub use crate::frontend::type_inference::Literal;
 use crate::type_checker::kinds::Kind;
-use crate::type_checker::{Id};
+use crate::type_checker::Id;
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -24,7 +24,13 @@ pub struct DefClass {
 }
 
 impl DefClass {
-    pub fn new(name: Id, varname: Id, kind: Kind, super_classes: Vec<Id>, methods: Vec<(Id, Scheme)>) -> Self {
+    pub fn new(
+        name: Id,
+        varname: Id,
+        kind: Kind,
+        super_classes: Vec<Id>,
+        methods: Vec<(Id, Scheme)>,
+    ) -> Self {
         DefClass {
             name,
             varname,
@@ -106,6 +112,7 @@ pub enum Expr {
 
     Lambda(Box<Alt>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
+    While(Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug)]
