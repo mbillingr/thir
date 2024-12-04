@@ -9,8 +9,8 @@ mod utils;
 
 use frontend::ast;
 use frontend::Runner;
+use std::env;
 use std::path::{Path, PathBuf};
-use std::{env, fs};
 type Result<T> = std::result::Result<T, String>;
 
 fn main() -> Result<()> {

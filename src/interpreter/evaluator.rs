@@ -23,14 +23,14 @@ impl Context {
 
     fn exec_bindgroup(&self, BindGroup(expls, implss): &BindGroup, env: &mut Env) {
         for Expl(id, _, alts) in expls {
-            env.insert(id.clone(), Value::boxed(Value::Uninitialized));
+            env.insert(id.clone(), Value::transparent_boxed(Value::Uninitialized));
             let value = self.eval_alts(alts, env);
             env[id].update(value)
         }
 
         for impls in implss {
             for Impl(id, _) in impls {
-                env.insert(id.clone(), Value::boxed(Value::Uninitialized));
+                env.insert(id.clone(), Value::transparent_boxed(Value::Uninitialized));
             }
 
             for Impl(id, alts) in impls {
@@ -108,7 +108,7 @@ impl Context {
 
     fn eval_lit(&self, lit: &Literal) -> Value {
         match lit {
-            Literal::Unit => Value::boxed(Value::Unit),
+            Literal::Unit => Value::transparent_boxed(Value::Unit),
             Literal::Bool(b) => Value::Bool(*b),
             Literal::Int(x) => Value::int(*x),
             Literal::Char(ch) => Value::Char(*ch),

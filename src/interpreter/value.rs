@@ -15,7 +15,8 @@ thread_local! {
 #[derive(Clone, Debug)]
 pub enum Value {
     Uninitialized,
-    Boxed(Rc<RefCell<Self>>),
+    TransparentBoxed(Rc<RefCell<Self>>),
+    ExplicitBoxed(Rc<RefCell<Self>>),
 
     Unit,
     Bool(bool),
@@ -45,13 +46,13 @@ impl Value {
     pub fn is_a(&self, ty: &type_checker::types::Type) -> bool {
         use type_checker::types::{Tycon, Type::*, Tyvar};
         match (ty, self) {
-            (ty, Value::Boxed(bx)) => bx.borrow().is_a(ty),
+            (ty, Value::TransparentBoxed(bx)) => bx.borrow().is_a(ty),
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::Int(_)) => tn == "Int",
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::Char(_)) => tn == "Char",
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::F64(_)) => tn == "Double",
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::String(_)) => tn == "String",
             (ty, Value::Constructor(tc, _, _)) => {
-                /// just compare the innermost type constructor without args
+                // just compare the innermost type constructor without args
                 let mut ty = ty;
                 while let TApp(rc) = ty {
                     ty = &rc.0;
@@ -84,20 +85,33 @@ impl Value {
         Value::Int(Rc::new(x.into()))
     }
 
+    pub fn transparent_boxed(self) -> Self {
+        Self::TransparentBoxed(Rc::new(self.into()))
+    }
+
     pub fn boxed(self) -> Self {
-        Self::Boxed(Rc::new(self.into()))
+        Self::ExplicitBoxed(Rc::new(self.into()))
+    }
+
+    pub fn unbox(&self) -> Self {
+        match self {
+            Value::TransparentBoxed(bx) => bx.borrow().unbox(),
+            Value::ExplicitBoxed(bx) => bx.borrow().clone(),
+            _ => self.clone(),
+        }
     }
 
     pub fn update(&self, value: Value) {
         match self {
-            Value::Boxed(bx) => *bx.borrow_mut() = value,
+            Value::TransparentBoxed(bx) => *bx.borrow_mut() = value,
+            Value::ExplicitBoxed(bx) => *bx.borrow_mut() = value,
             _ => panic!("immutable value"),
         }
     }
 
     pub fn resolve(&self) -> Self {
         match self {
-            Value::Boxed(bx) => bx.borrow().resolve(),
+            Value::TransparentBoxed(bx) => bx.borrow().resolve(),
             _ => self.clone(),
         }
     }
@@ -108,7 +122,7 @@ impl Value {
 
     pub fn dict_insert(&self, key: Value, value: Value) -> Self {
         match self {
-            Value::Boxed(bx) => bx.borrow().dict_insert(key, value),
+            Value::TransparentBoxed(bx) => bx.borrow().dict_insert(key, value),
             Value::Dict(dict) => {
                 let mut dict = (**dict).clone();
                 dict.insert(key, value);
@@ -120,7 +134,7 @@ impl Value {
 
     pub fn as_dict(&self) -> Option<Rc<im_rc::HashMap<Value, Value>>> {
         match self {
-            Value::Boxed(bx) => bx.borrow().as_dict(),
+            Value::TransparentBoxed(bx) => bx.borrow().as_dict(),
             Value::Dict(dict) => Some(dict.clone()),
             _ => None,
         }
@@ -140,7 +154,7 @@ impl Value {
 
     pub fn as_constructor(&self) -> Option<(Rc<str>, Rc<Vec<Value>>)> {
         match self {
-            Value::Boxed(bx) => bx.borrow().as_constructor(),
+            Value::TransparentBoxed(bx) => bx.borrow().as_constructor(),
             Value::Constructor(_, tag, fields) => Some((tag.clone(), fields.clone())),
             _ => None,
         }
@@ -161,7 +175,7 @@ impl Value {
 
     pub fn head(&self) -> Option<Value> {
         match self {
-            Value::Boxed(bx) => bx.borrow().head(),
+            Value::TransparentBoxed(bx) => bx.borrow().head(),
             Value::Constructor(_, tag, fields) if &**tag == "::" => Some(fields[0].clone()),
             _ => None,
         }
@@ -169,7 +183,7 @@ impl Value {
 
     pub fn tail(&self) -> Option<Value> {
         match self {
-            Value::Boxed(bx) => bx.borrow().head(),
+            Value::TransparentBoxed(bx) => bx.borrow().head(),
             Value::Constructor(_, tag, fields) if &**tag == "::" => Some(fields[1].clone()),
             _ => None,
         }
@@ -191,7 +205,7 @@ impl Value {
 
     pub fn as_array(&self) -> Option<Rc<Array>> {
         match self {
-            Value::Boxed(bx) => bx.borrow().as_array(),
+            Value::TransparentBoxed(bx) => bx.borrow().as_array(),
             Value::NdArray(arr) => Some(arr.clone()),
             _ => None,
         }
@@ -220,7 +234,7 @@ impl Value {
         Rc<Vec<Value>>,
     )> {
         match self {
-            Value::Boxed(bx) => bx.borrow().as_method(),
+            Value::TransparentBoxed(bx) => bx.borrow().as_method(),
             Value::Method(name, dispatch_arg, impls, args) => {
                 Some((name.clone(), *dispatch_arg, impls.clone(), args.clone()))
             }
@@ -234,7 +248,7 @@ impl Value {
 
     pub fn is_unit(&self) -> bool {
         match self {
-            Value::Boxed(bx) => bx.borrow().is_unit(),
+            Value::TransparentBoxed(bx) => bx.borrow().is_unit(),
             Value::Unit => true,
             _ => false,
         }
@@ -242,7 +256,7 @@ impl Value {
 
     pub fn as_bool(&self) -> bool {
         match self {
-            Value::Boxed(bx) => bx.borrow().as_bool(),
+            Value::TransparentBoxed(bx) => bx.borrow().as_bool(),
             Value::Bool(x) => *x,
             _ => panic!("expected boolean"),
         }
@@ -250,7 +264,7 @@ impl Value {
 
     pub fn as_int(&self) -> Rc<num::BigInt> {
         match self {
-            Value::Boxed(bx) => bx.borrow().as_int(),
+            Value::TransparentBoxed(bx) => bx.borrow().as_int(),
             Value::Int(x) => x.clone(),
             _ => panic!("expected int"),
         }
@@ -258,7 +272,7 @@ impl Value {
 
     pub fn as_char(&self) -> char {
         match self {
-            Value::Boxed(bx) => bx.borrow().as_char(),
+            Value::TransparentBoxed(bx) => bx.borrow().as_char(),
             Value::Char(ch) => *ch,
             _ => panic!("expected char"),
         }
@@ -266,7 +280,7 @@ impl Value {
 
     pub fn as_float(&self) -> f64 {
         match self {
-            Value::Boxed(bx) => bx.borrow().as_float(),
+            Value::TransparentBoxed(bx) => bx.borrow().as_float(),
             Value::F64(x) => *x,
             _ => panic!("expected float"),
         }
@@ -274,7 +288,7 @@ impl Value {
 
     pub fn as_string(&self) -> Rc<str> {
         match self {
-            Value::Boxed(bx) => bx.borrow().as_string(),
+            Value::TransparentBoxed(bx) => bx.borrow().as_string(),
             Value::String(s) => s.clone(),
             _ => panic!("expected string {:?}", self),
         }
@@ -282,7 +296,7 @@ impl Value {
 
     pub fn apply(&self, args: Vec<Value>) -> Value {
         match self {
-            Value::Boxed(bx) => bx.borrow().apply(args),
+            Value::TransparentBoxed(bx) => bx.borrow().apply(args),
 
             Value::Constructor(ty, tag, fields) => {
                 let mut fields = (**fields).clone();
@@ -370,7 +384,8 @@ impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Uninitialized => write!(f, "<uninitialized>"),
-            Value::Boxed(bx) => write!(f, "@{:?}", bx.borrow()),
+            Value::TransparentBoxed(bx) => write!(f, "@{:?}", bx.borrow()),
+            Value::ExplicitBoxed(bx) => write!(f, "@{:?}", bx.borrow()),
             Value::Unit => write!(f, "()"),
             Value::Bool(x) => write!(f, "{}", x),
             Value::Int(x) => write!(f, "{}", x),
@@ -456,7 +471,8 @@ impl Hash for Value {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Value::Uninitialized => {}
-            Value::Boxed(rc) => Rc::as_ptr(rc).hash(state),
+            Value::TransparentBoxed(rc) => Rc::as_ptr(rc).hash(state),
+            Value::ExplicitBoxed(_) => unimplemented!(),
             Value::Unit => ().hash(state),
             Value::Bool(b) => b.hash(state),
             Value::Int(x) => x.hash(state),
@@ -487,7 +503,7 @@ impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Value::Uninitialized, Value::Uninitialized) => true,
-            (Value::Boxed(a), Value::Boxed(b)) => Rc::ptr_eq(a, b),
+            (Value::TransparentBoxed(a), Value::TransparentBoxed(b)) => Rc::ptr_eq(a, b),
             (Value::Unit, Value::Unit) => true,
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::Int(a), Value::Int(b)) => a == b,

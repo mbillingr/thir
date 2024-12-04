@@ -213,6 +213,18 @@ impl Runner {
             )
             .unwrap();
 
+            // mutability
+            self.define_primitive("box", "forall a => a -> a", |args| {
+                interpreter::Value::boxed(args[0].clone())
+            });
+            self.define_primitive("get", "forall a => a -> a", |args| args[0].unbox());
+            self.define_primitive("set!", "forall a => a -> a -> ()", |args| {
+                let a = args[0].clone();
+                let b = args[1].clone();
+                a.update(b);
+                interpreter::Value::Unit
+            });
+
             // Add a primitive function for debug printing
             self.define_primitive("dbg", "forall a => a -> ()", |args| {
                 println!("{:?}", args);
