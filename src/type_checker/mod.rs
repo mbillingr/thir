@@ -16,3 +16,5 @@ pub type Id = String;
 
 /// Uniquely identifies generic variables
 pub type GenId = usize;
+
+pub use type_inference::TI;

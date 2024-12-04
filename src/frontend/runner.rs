@@ -1,7 +1,6 @@
 use crate::frontend::ast_to_typeck::TEnv;
 use crate::frontend::type_inference::{ti_expr, ti_program, BindGroup, Expl, Program};
 use crate::frontend::{ast, grammar};
-use crate::interpreter;
 use crate::type_checker::assumptions::{find, Assump};
 use crate::type_checker::classes::{ClassEnv, EnvTransformer};
 use crate::type_checker::kinds::Kind;
@@ -11,6 +10,7 @@ use crate::type_checker::scheme::Scheme;
 use crate::type_checker::type_inference::TI;
 use crate::type_checker::types::{Tycon, Type};
 use crate::type_checker::Id;
+use crate::{interpreter, transpiler};
 use num::ToPrimitive;
 use std::collections::HashMap;
 use std::fs;
@@ -35,6 +35,8 @@ pub struct Runner {
     pub free_decls: HashMap<Id, ast::Decl>,
 
     pub value_env: interpreter::Env,
+
+    pub transpiler: transpiler::Context,
 }
 
 macro_rules! super_classes {
@@ -196,6 +198,7 @@ impl Runner {
             constructors,
             free_decls,
             value_env,
+            transpiler: transpiler::Context::new(),
         }
     }
 
@@ -603,11 +606,13 @@ impl Runner {
 
         self.type_env = backup;
 
-        let et = EnvTransformer::add_inst(preds, Pred::IsIn(ic.cls, ty));
+        let et = EnvTransformer::add_inst(preds, Pred::IsIn(ic.cls.clone(), ty.clone()));
         let class_env = et.apply(&self.class_env)?;
 
         let mut prog = Program(vec![BindGroup(expls, vec![])]);
         let (_, ti) = ti_program(&class_env, self.assumptions.clone(), &prog)?;
+
+        self.transpiler.implement_class(&ic.cls, &ty, &prog, &ti);
 
         self.class_env = class_env;
 
@@ -633,6 +638,9 @@ impl Runner {
     }
 
     fn define_datatype(&mut self, dt: ast::DataType) -> crate::Result<()> {
+        self.transpiler
+            .define_datatype(&dt.typename, &dt.genvars, &dt.constructors);
+
         if self.type_env.contains_key(&dt.typename) {
             return Err(format!("type {} already defined", dt.typename));
         }
@@ -678,6 +686,7 @@ impl Runner {
         }
 
         self.type_env = backup;
+
         Ok(())
     }
 

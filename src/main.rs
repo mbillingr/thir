@@ -3,13 +3,14 @@
 
 mod frontend;
 mod interpreter;
+mod transpiler;
 mod type_checker;
 mod utils;
 
 use frontend::ast;
 use frontend::Runner;
-use std::env;
 use std::path::{Path, PathBuf};
+use std::{env, fs};
 type Result<T> = std::result::Result<T, String>;
 
 fn main() -> Result<()> {
@@ -33,6 +34,11 @@ fn main() -> Result<()> {
         ast::Expr::Var("main".into()),
         ast::Expr::Lit(ast::Literal::Unit),
     ))?;
+
+    /*
+    println!("{}", ctx.transpiler.output);
+    fs::write("/tmp/out.jl", ctx.transpiler.output).unwrap();
+    */
 
     Ok(())
 }
