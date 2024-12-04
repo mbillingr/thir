@@ -174,7 +174,6 @@ impl Runner {
         tenv.insert("Int".into(), Type::t_int());
         tenv.insert("Float".into(), Type::t_float());
         tenv.insert("String".into(), Type::t_string());
-        tenv.insert("Array".into(), Type::t_array());
         tenv.insert("Dict".into(), Type::t_dict());
         tenv.insert(
             "Hasher".into(),
@@ -405,6 +404,7 @@ impl Runner {
             );
 
             // nd-arrays
+            self.type_env.insert("Array".into(), Type::t_array());
 
             self.define_primitive(
                 "make-const-array",
@@ -419,6 +419,12 @@ impl Runner {
             self.define_primitive("array-size", "forall a => Array a -> [Int]", |args| {
                 let arr = args[0].as_array().unwrap();
                 interpreter::Value::make_list(arr.shape().map(|&x| interpreter::Value::int(x)))
+            });
+
+            self.define_primitive("array-get", "forall a => [Int] -> Array a -> a", |args| {
+                let idx = list_of_ints(&args[0]);
+                let arr = args[0].as_array().unwrap();
+                arr.get(&idx).clone()
             });
         }
     }
