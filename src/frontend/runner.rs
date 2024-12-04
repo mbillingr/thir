@@ -11,6 +11,7 @@ use crate::type_checker::scheme::Scheme;
 use crate::type_checker::type_inference::TI;
 use crate::type_checker::types::{Tycon, Type};
 use crate::type_checker::Id;
+use num::ToPrimitive;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
@@ -173,6 +174,7 @@ impl Runner {
         tenv.insert("Int".into(), Type::t_int());
         tenv.insert("Float".into(), Type::t_float());
         tenv.insert("String".into(), Type::t_string());
+        tenv.insert("Array".into(), Type::t_array());
         tenv.insert("Dict".into(), Type::t_dict());
         tenv.insert(
             "Hasher".into(),
@@ -401,6 +403,23 @@ impl Runner {
                     interpreter::Value::make_list_reverse(dict.as_dict().unwrap().values().cloned())
                 },
             );
+
+            // nd-arrays
+
+            self.define_primitive(
+                "make-const-array",
+                "forall a => [Int] -> a -> Array a",
+                |args| {
+                    let size = list_of_ints(&args[0]);
+                    let fill = args[1].clone();
+                    interpreter::Value::array(interpreter::Array::constant(size, fill))
+                },
+            );
+
+            self.define_primitive("array-size", "forall a => Array a -> [Int]", |args| {
+                let arr = args[0].as_array().unwrap();
+                interpreter::Value::make_list(arr.shape().map(|&x| interpreter::Value::int(x)))
+            });
         }
     }
 
@@ -683,4 +702,12 @@ impl Runner {
 
         Ok(value)
     }
+}
+
+fn list_of_ints(val: &interpreter::Value) -> Vec<usize> {
+    val.as_list()
+        .unwrap()
+        .into_iter()
+        .map(|v| v.as_int().to_usize().unwrap())
+        .collect()
 }

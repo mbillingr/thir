@@ -25,6 +25,7 @@ pub enum Value {
     String(Rc<str>),
 
     Dict(Rc<im_rc::HashMap<Value, Value>>),
+    NdArray(Rc<Array>),
 
     Closure(Rc<Closure>),
 
@@ -143,6 +144,44 @@ impl Value {
             result = Value::applied_constructor(strlist.clone(), "::", vec![item, result]);
         }
         result
+    }
+
+    pub fn head(&self) -> Option<Value> {
+        match self {
+            Value::Boxed(bx) => bx.borrow().head(),
+            Value::Constructor(_, tag, fields) if &**tag == "::" => Some(fields[0].clone()),
+            _ => None,
+        }
+    }
+
+    pub fn tail(&self) -> Option<Value> {
+        match self {
+            Value::Boxed(bx) => bx.borrow().head(),
+            Value::Constructor(_, tag, fields) if &**tag == "::" => Some(fields[1].clone()),
+            _ => None,
+        }
+    }
+
+    pub fn as_list(&self) -> Option<Vec<Value>> {
+        let mut result = vec![];
+        let mut current = self.clone();
+        while let Some(head) = current.head() {
+            result.push(head);
+            current = current.tail()?;
+        }
+        Some(result)
+    }
+
+    pub fn array(arr: Array) -> Self {
+        Value::NdArray(Rc::new(arr))
+    }
+
+    pub fn as_array(&self) -> Option<Rc<Array>> {
+        match self {
+            Value::Boxed(bx) => bx.borrow().as_array(),
+            Value::NdArray(arr) => Some(arr.clone()),
+            _ => None,
+        }
     }
 
     pub fn method(name: impl Into<Rc<str>>, dispatch_arg: usize) -> Self {
@@ -349,6 +388,7 @@ impl std::fmt::Display for Value {
                 }
                 Ok(())
             }
+            Value::NdArray(arr) => write!(f, "{:?}", arr),
             Value::Method(name, _, _, args) => write!(
                 f,
                 "<method {} [{}]>",
@@ -411,6 +451,7 @@ impl Hash for Value {
             Value::F64(_) => unimplemented!(),
             Value::String(s) => s.hash(state),
             Value::Dict(_) => unimplemented!(),
+            Value::NdArray(_) => unimplemented!(),
             Value::Closure(cls) => Rc::as_ptr(cls).hash(state),
             Value::Method(_, _, _, _) => unimplemented!(),
             Value::Primitive(p, args) => {
@@ -453,6 +494,79 @@ impl PartialEq for Value {
                 })
             }
             _ => false,
+        }
+    }
+}
+
+pub struct Array {
+    pub shape: Vec<usize>,
+    pub strides: Vec<usize>,
+    pub offset: usize,
+    pub data: Rc<Vec<Value>>,
+}
+
+impl std::fmt::Debug for Array {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<array {:?}>", self.shape)
+    }
+}
+
+impl Array {
+    pub fn empty() -> Self {
+        Array {
+            shape: vec![],
+            strides: vec![],
+            offset: 0,
+            data: Rc::new(vec![]),
+        }
+    }
+
+    pub fn constant(shape: Vec<usize>, value: Value) -> Self {
+        let size = shape.iter().product();
+        Array {
+            strides: shape
+                .iter()
+                .rev()
+                .scan(1, |state, &x| {
+                    let result = *state;
+                    *state *= x;
+                    Some(result)
+                })
+                .collect(),
+            shape,
+            offset: 0,
+            data: Rc::new(vec![value; size]),
+        }
+    }
+
+    pub fn shape(&self) -> impl DoubleEndedIterator<Item = &usize> {
+        self.shape.iter()
+    }
+
+    pub fn get(&self, index: &[usize]) -> Value {
+        let offset: usize = index
+            .iter()
+            .zip(self.strides.iter())
+            .map(|(i, s)| i * s)
+            .sum();
+        self.data[offset + self.offset].clone()
+    }
+
+    pub fn slice(&self, begin: &[usize], end: &[usize], step: &[usize]) -> Self {
+        let mut shape = vec![];
+        let mut strides = vec![];
+        let mut offset = self.offset;
+        for ((b, e), s) in begin.iter().zip(end.iter()).zip(step.iter()) {
+            let size = (e - b + s - 1) / s;
+            shape.push(size);
+            strides.push(self.strides[shape.len() - 1] * s);
+            offset += b * self.strides[shape.len() - 1];
+        }
+        Array {
+            shape,
+            strides,
+            offset,
+            data: self.data.clone(),
         }
     }
 }

@@ -39,6 +39,11 @@ impl Type {
         Type::TCon(Tycon("[]".into(), Kind::kfun(Kind::Star, Kind::Star)))
     }
 
+    /// construct the list type constructor
+    pub fn t_array() -> Self {
+        Type::TCon(Tycon("Array".into(), Kind::kfun(Kind::Star, Kind::Star)))
+    }
+
     /// construct the dict type constructor
     pub fn t_dict() -> Self {
         Type::TCon(Tycon(
