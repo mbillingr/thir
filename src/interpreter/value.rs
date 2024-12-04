@@ -50,7 +50,20 @@ impl Value {
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::Char(_)) => tn == "Char",
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::F64(_)) => tn == "Double",
             (TVar(Tyvar(tn, _)) | TCon(Tycon(tn, _)), Value::String(_)) => tn == "String",
-            (ty, Value::Constructor(tc, _, _)) => types::Type::soft_eq(tc, ty),
+            (ty, Value::Constructor(tc, _, _)) => {
+                /// just compare the innermost type constructor without args
+                let mut ty = ty;
+                while let TApp(rc) = ty {
+                    ty = &rc.0;
+                }
+
+                let mut tc = &**tc;
+                while let TApp(rc) = tc {
+                    tc = &rc.0;
+                }
+
+                types::Type::soft_eq(tc, ty)
+            }
             (TGen(_), _) => true,
             (TApp(rc), Value::Dict(_)) => {
                 if let TApp(rc2) = &rc.0 {

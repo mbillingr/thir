@@ -14,6 +14,7 @@ use crate::{interpreter, transpiler};
 use num::ToPrimitive;
 use std::collections::HashMap;
 use std::fs;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Write;
 use std::path::Path;
 
@@ -343,13 +344,37 @@ impl Runner {
                 *global = Some(hash_fn);
             });
 
+            self.define_primitive(
+                "hash2",
+                "forall (a : Hashable) (b : Hashable) => a -> b -> Int",
+                |args| {
+                    let mut hasher = DefaultHasher::new();
+                    args[0].hash(&mut hasher);
+                    args[1].hash(&mut hasher);
+                    interpreter::Value::int(hasher.finish().to_u64().unwrap())
+                },
+            );
+
+            self.define_primitive("hash-list", "forall (a : Hashable) => [a] -> Int", |args| {
+                let mut hasher = DefaultHasher::new();
+                for x in args[0].as_list().unwrap() {
+                    x.hash(&mut hasher);
+                }
+                interpreter::Value::int(hasher.finish().to_u64().unwrap())
+            });
+
             self.primitive_class_impl(
                 "Hashable",
                 "Int",
                 vec![(
                     "hash",
-                    "Int -> Hasher -> ()",
-                    interpreter::Value::primitive("hash-int", 2, |_| unimplemented!()),
+                    "Int -> Int",
+                    interpreter::Value::primitive("hash-int", 1, |args| {
+                        let mut hasher = DefaultHasher::new();
+                        let x = args[0].as_int();
+                        x.hash(&mut hasher);
+                        interpreter::Value::int(hasher.finish().to_u64().unwrap())
+                    }),
                 )],
             );
 
@@ -358,8 +383,13 @@ impl Runner {
                 "String",
                 vec![(
                     "hash",
-                    "String -> Hasher -> ()",
-                    interpreter::Value::primitive("hash-str", 2, |_| unimplemented!()),
+                    "String -> Int",
+                    interpreter::Value::primitive("hash-str", 1, |args| {
+                        let mut hasher = DefaultHasher::new();
+                        let x = args[0].as_int();
+                        x.hash(&mut hasher);
+                        interpreter::Value::int(hasher.finish().to_u64().unwrap())
+                    }),
                 )],
             );
 
@@ -428,6 +458,39 @@ impl Runner {
                 let idx = list_of_ints(&args[0]);
                 let arr = args[0].as_array().unwrap();
                 arr.get(&idx).clone()
+            });
+
+            self.define_primitive(
+                "array-slice",
+                "forall a => [Int] -> [Int] -> [Int] -> Array a -> Array a",
+                |args| {
+                    let begin = list_of_ints(&args[0]);
+                    let end = list_of_ints(&args[0]);
+                    let step = list_of_ints(&args[0]);
+                    let arr = args[0].as_array().unwrap();
+                    interpreter::Value::array(arr.slice(&begin, &end, &step))
+                },
+            );
+
+            self.define_primitive("array->list", "forall a => Array a -> [a]", |args| {
+                let arr = args[0].as_array().unwrap();
+                let end: Vec<_> = arr.shape().copied().collect();
+                let mut idx = vec![0; end.len()];
+                let mut out = vec![];
+                'out: loop {
+                    out.push(arr.get(&idx).clone());
+                    idx[0] += 1;
+                    let mut dim = 0;
+                    while idx[dim] == end[dim] {
+                        idx[dim] = 0;
+                        dim += 1;
+                        if dim == end.len() {
+                            break 'out;
+                        }
+                        idx[dim] += 1;
+                    }
+                }
+                interpreter::Value::make_list(out.into_iter())
             });
         }
     }
