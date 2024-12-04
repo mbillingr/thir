@@ -43,7 +43,6 @@ impl Foldable for [] {
               in loop;
 }
 
-
 interface Functor f : * -> * {
     map : forall u v => (u -> v) -> f u -> f v;
 }
@@ -63,6 +62,14 @@ impl Filterable for [] {
     //filter p = foldr (fun x fxs = if (p x) then x :: fxs else fxs) Nil;
 }
 
+interface Revertable f : * -> * {
+    revert : forall a => f a -> f a;
+}
+
+impl Revertable for [] {
+    revert = foldl (fun acc x = x :: acc) Nil;
+}
+
 all p = let loop (Nil) = true
                | (x :: xs) = if p x then loop xs else false
         in loop;
@@ -77,6 +84,12 @@ len = foldl (fun acc _ = acc + 1) 0;
 take n (Nil) = Nil
    | 0 _ = Nil
    | n (x :: xs) = x :: (take (n - 1) xs);
+
+skip 0 xs = xs
+   | k (Nil) = Nil
+   | k (x :: xs) = skip k - 1 xs;
+
+flatten xss = foldr (++) [ ] xss;
 
 sort (Nil) = Nil
    | (x :: (Nil)) = [x]
