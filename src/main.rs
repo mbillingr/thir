@@ -3,7 +3,7 @@
 
 mod frontend;
 mod interpreter;
-mod transpiler;
+//mod transpiler;
 mod type_checker;
 mod utils;
 
@@ -12,6 +12,29 @@ use frontend::Runner;
 use std::env;
 use std::path::{Path, PathBuf};
 type Result<T> = std::result::Result<T, String>;
+
+mod transpiler {
+    use crate::{
+        frontend::{ast, type_inference::Program},
+        type_checker::{kinds::Kind, types::Type, Id, TI},
+    };
+
+    pub struct Context {}
+
+    impl Context {
+        pub fn new() -> Self {
+            Context {}
+        }
+        pub fn define_datatype(
+            &self,
+            _: &str,
+            _: &[(Id, Kind, Vec<Id>)],
+            _: &[(Id, Vec<ast::Type>)],
+        ) {
+        }
+        pub fn implement_class(&self, _: &str, _: &Type, _: &Program, _: &TI) {}
+    }
+}
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
