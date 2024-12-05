@@ -15,7 +15,7 @@ use crate::utils::lists::{eq_diff, eq_intersect, eq_union, rfold1};
 use std::iter::once;
 use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Literal {
     Unit,
     Bool(bool),
@@ -114,7 +114,7 @@ fn ti_pats(ti: &mut TI, pats: &[Pat]) -> crate::Result<(Vec<Pred>, Vec<Assump>, 
     Ok((ps, as_, ts))
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Expr {
     Var(Id),
     Lit(Literal),
@@ -346,8 +346,8 @@ fn ti_impls(
     }
 }
 
-#[derive(Debug)]
-pub struct BindGroup(pub Vec<Expl>, pub Vec<Vec<Impl>>);
+#[derive(Clone, Debug)]
+pub struct BindGroup(pub Rc<Vec<Expl>>, pub Rc<Vec<Vec<Impl>>>);
 
 fn ti_bindgroup(
     ti: &mut TI,

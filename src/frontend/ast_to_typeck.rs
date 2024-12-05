@@ -75,7 +75,7 @@ impl Runner {
             }
         }
 
-        si::BindGroup(expls, impls)
+        si::BindGroup(Rc::new(expls), Rc::new(impls))
     }
 
     pub fn build_impl(&mut self, ast::Impl(id, alts): ast::Impl) -> si::Impl {
@@ -145,8 +145,8 @@ impl Runner {
 
                 si::Expr::Let(
                     si::BindGroup(
-                        vec![],
-                        vec![vec![si::Impl(name.clone(), Rc::new(vec![alt]))]],
+                        Rc::new(vec![]),
+                        Rc::new(vec![vec![si::Impl(name.clone(), Rc::new(vec![alt]))]]),
                     ),
                     Rc::new(si::Expr::Var(name)),
                 )

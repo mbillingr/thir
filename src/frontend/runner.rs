@@ -17,6 +17,7 @@ use std::fs;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Write;
 use std::path::Path;
+use std::rc::Rc;
 
 pub struct Runner {
     pub class_env: ClassEnv,
@@ -684,22 +685,15 @@ impl Runner {
         let et = EnvTransformer::add_inst(preds, Pred::IsIn(ic.cls.clone(), ty.clone()));
         let class_env = et.apply(&self.class_env)?;
 
-        let mut prog = Program(vec![BindGroup(expls, vec![])]);
+        let mut prog = Program(vec![BindGroup(Rc::new(expls), Rc::new(vec![]))]);
         let (_, ti) = ti_program(&class_env, self.assumptions.clone(), &prog)?;
 
         self.transpiler.implement_class(&ic.cls, &ty, &prog, &ti);
 
         self.class_env = class_env;
 
-        let ctx = interpreter::Context::new(ti);
-        for (Expl(_, sc, alts), name) in prog
-            .0
-            .pop()
-            .unwrap()
-            .0
-            .into_iter()
-            .zip(original_method_names)
-        {
+        let mut ctx = interpreter::Context::new(ti);
+        for (Expl(_, sc, alts), name) in prog.0.pop().unwrap().0.iter().zip(original_method_names) {
             let val = ctx.eval_alts(&alts, &self.value_env);
 
             let method = self.value_env.get(&name).unwrap();

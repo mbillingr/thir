@@ -1,4 +1,4 @@
-use crate::frontend::type_inference::Alt;
+use crate::frontend::type_inference::{Alt, Expr};
 use crate::interpreter::evaluator::Context;
 use crate::interpreter::{dispatch, Env};
 use crate::type_checker;
@@ -294,14 +294,14 @@ impl Value {
         }
     }
 
-    pub fn apply(&self, args: Vec<Value>) -> Value {
+    pub fn apply(&self, args: Vec<Value>) -> Return {
         match self {
             Value::TransparentBoxed(bx) => bx.borrow().apply(args),
 
             Value::Constructor(ty, tag, fields) => {
                 let mut fields = (**fields).clone();
                 fields.extend(args);
-                Value::Constructor(ty.clone(), tag.clone(), Rc::new(fields))
+                Return::Result(Value::Constructor(ty.clone(), tag.clone(), Rc::new(fields)))
             }
 
             Value::Primitive(prim, gathered_args) => {
@@ -311,10 +311,10 @@ impl Value {
                 assert!(gathered_args.len() <= prim.arity);
 
                 if gathered_args.len() < prim.arity {
-                    return Value::Primitive(prim.clone(), Rc::new(gathered_args));
+                    return Return::Result(Value::Primitive(prim.clone(), Rc::new(gathered_args)));
                 }
 
-                (prim.f)(&gathered_args)
+                Return::Result((prim.f)(&gathered_args))
             }
 
             Value::Closure(cls) => {
@@ -329,12 +329,12 @@ impl Value {
 
                 'next_alternative: for Alt(pats, body) in alts.iter() {
                     if gathered_args.len() < pats.len() {
-                        return Value::Closure(Rc::new(Closure {
+                        return Return::Result(Value::Closure(Rc::new(Closure {
                             alts: alts.clone(),
                             env: env.clone(),
                             ctx: ctx.clone(),
                             gathered_args,
-                        }));
+                        })));
                     }
 
                     let mut local_env = env.clone();
@@ -343,13 +343,23 @@ impl Value {
                             continue 'next_alternative;
                         }
                     }
-                    let mut result = ctx.eval_expr(body, &local_env);
+
+                    let mut ctx = ctx.clone();
 
                     if gathered_args.len() > pats.len() {
-                        result = result.apply(gathered_args[pats.len()..].to_vec());
-                    }
+                        let mut result = ctx.eval_expr(body, &local_env);
 
-                    return result;
+                        match result.apply(gathered_args[pats.len()..].to_vec()) {
+                            Return::Result(v) => result = v,
+                            Return::TailCall(mut ctx, expr, env) => {
+                                result = ctx.eval_expr(&expr, &env);
+                            }
+                        }
+
+                        return Return::Result(result);
+                    } else {
+                        return Return::TailCall(ctx, body.clone(), local_env);
+                    }
                 }
                 panic!("no pattern matched")
             }
@@ -368,16 +378,21 @@ impl Value {
                     }
                 }
 
-                Value::Method(
+                Return::Result(Value::Method(
                     name.clone(),
                     *dispatch_arg,
                     impls.clone(),
                     Rc::new(gathered_args),
-                )
+                ))
             }
             _ => panic!("non-callable value {}", self),
         }
     }
+}
+
+pub enum Return {
+    Result(Value),
+    TailCall(Context, Expr, Env),
 }
 
 impl std::fmt::Display for Value {
@@ -490,7 +505,12 @@ impl Hash for Value {
             Value::Constructor(_, _, _) => {
                 GLOBAL_HASH_FN.with_borrow(|fn_| {
                     let fn_ = fn_.as_ref().unwrap();
-                    fn_.apply(vec![self.clone()]).hash(state);
+                    match fn_.apply(vec![self.clone()]) {
+                        Return::Result(v) => v.hash(state),
+                        Return::TailCall(mut ctx, expr, env) => {
+                            ctx.eval_expr(&expr, &env).hash(state)
+                        }
+                    }
                 });
             }
         }
@@ -519,7 +539,12 @@ impl PartialEq for Value {
             (Value::Constructor(_, _, _), Value::Constructor(_, _, _)) => {
                 GLOBAL_EQ_FN.with_borrow(|fn_| {
                     let fn_ = fn_.as_ref().unwrap();
-                    fn_.apply(vec![self.clone(), other.clone()]).as_bool()
+                    match fn_.apply(vec![self.clone(), other.clone()]) {
+                        Return::Result(v) => v.as_bool(),
+                        Return::TailCall(mut ctx, expr, env) => {
+                            ctx.eval_expr(&expr, &env).as_bool()
+                        }
+                    }
                 })
             }
             _ => false,

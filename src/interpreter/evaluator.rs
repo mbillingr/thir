@@ -1,6 +1,6 @@
 use crate::ast::Literal;
 use crate::frontend::type_inference::{Alt, BindGroup, Expl, Expr, Impl, Pat, Program};
-use crate::interpreter::value::Closure;
+use crate::interpreter::value::{Closure, Return};
 use crate::interpreter::{dispatch, Env, Value};
 use crate::type_checker::assumptions::Assump;
 use crate::type_checker::type_inference::TI;
@@ -15,20 +15,20 @@ impl Context {
     pub fn new(ti: TI) -> Self {
         Context { ti: Rc::new(ti) }
     }
-    pub fn exec_program(&self, Program(bgs): &Program, env: &mut Env) {
+    pub fn exec_program(&mut self, Program(bgs): &Program, env: &mut Env) {
         for bg in bgs {
             self.exec_bindgroup(bg, env)
         }
     }
 
-    fn exec_bindgroup(&self, BindGroup(expls, implss): &BindGroup, env: &mut Env) {
-        for Expl(id, _, alts) in expls {
+    fn exec_bindgroup(&mut self, BindGroup(expls, implss): &BindGroup, env: &mut Env) {
+        for Expl(id, _, alts) in expls.iter() {
             env.insert(id.clone(), Value::transparent_boxed(Value::Uninitialized));
             let value = self.eval_alts(alts, env);
             env[id].update(value)
         }
 
-        for impls in implss {
+        for impls in implss.iter() {
             for Impl(id, _) in impls {
                 env.insert(id.clone(), Value::transparent_boxed(Value::Uninitialized));
             }
@@ -40,7 +40,7 @@ impl Context {
         }
     }
 
-    pub fn eval_alts(&self, alts: &Rc<Vec<Alt>>, env: &Env) -> Value {
+    pub fn eval_alts(&mut self, alts: &Rc<Vec<Alt>>, env: &Env) -> Value {
         if alts[0].0.is_empty() {
             return self.eval_expr(&alts[0].1, env);
         }
@@ -53,61 +53,77 @@ impl Context {
         }))
     }
 
-    pub fn eval_expr(&self, expr: &Expr, env: &Env) -> Value {
-        match expr {
-            Expr::Var(x) => {
-                let val = env
-                    .get(x)
-                    .unwrap_or_else(|| panic!("unbound {x}"))
-                    .clone()
-                    .resolve();
+    pub fn eval_expr(&mut self, expr: &Expr, env: &Env) -> Value {
+        let mut expr = expr.clone();
+        let mut env = env.clone();
+        loop {
+            match &expr {
+                Expr::Var(x) => {
+                    let val = env
+                        .get(x)
+                        .unwrap_or_else(|| panic!("unbound {x}"))
+                        .clone()
+                        .resolve();
 
-                // I guess this can be considered static dispatch
-                if let Value::Method(_, dispatch_arg, impls, args) = &val {
-                    // if it has args, the method is already in the process of being dynamically dispatched
-                    if args.is_empty() {
-                        if let Some(t) = self.ti.get_annotation(expr) {
-                            let (argtys, _) = t.fn_types();
-                            let t = argtys[*dispatch_arg];
-                            for (ty, value) in impls.borrow().iter() {
-                                if dispatch::type_matches_type(ty, t) {
-                                    return value.clone();
+                    // I guess this can be considered static dispatch
+                    if let Value::Method(_, dispatch_arg, impls, args) = &val {
+                        // if it has args, the method is already in the process of being dynamically dispatched
+                        if args.is_empty() {
+                            if let Some(t) = self.ti.get_annotation(&expr) {
+                                let (argtys, _) = t.fn_types();
+                                let t = argtys[*dispatch_arg];
+                                for (ty, value) in impls.borrow().iter() {
+                                    if dispatch::type_matches_type(ty, t) {
+                                        return value.clone();
+                                    }
                                 }
                             }
                         }
                     }
+                    return val;
                 }
-                val
-            }
-            Expr::Lit(l) => self.eval_lit(l),
-            Expr::App(rator, rand) => {
-                let rator_ = self.eval_expr(rator, env);
-                let rand_ = self.eval_expr(rand, env);
-                rator_.apply(vec![rand_])
-            }
-            Expr::Let(bg, body) => {
-                let mut local_env = env.clone();
-                self.exec_bindgroup(bg, &mut local_env);
-                self.eval_expr(body, &local_env)
-            }
-            Expr::Sequence(stmts, expr) => {
-                for stmt in stmts.iter() {
-                    self.eval_expr(stmt, env);
+                Expr::Lit(l) => return self.eval_lit(l),
+                Expr::App(rator, rand) => {
+                    let rator_ = self.eval_expr(rator, &env);
+                    let rand_ = self.eval_expr(rand, &env);
+                    match rator_.apply(vec![rand_]) {
+                        Return::Result(val) => return val,
+                        Return::TailCall(ctx, expr_, env_) => {
+                            *self = ctx;
+                            expr = expr_;
+                            env = env_;
+                            continue;
+                        }
+                    }
                 }
-                self.eval_expr(expr, env)
-            }
-            Expr::If(cond, t, f) => {
-                if self.eval_expr(cond, env).as_bool() {
-                    self.eval_expr(t, env)
-                } else {
-                    self.eval_expr(f, env)
+                Expr::Let(bg, body) => {
+                    let mut local_env = env.clone();
+                    self.exec_bindgroup(bg, &mut local_env);
+                    expr = (**body).clone();
+                    env = local_env;
+                    continue;
                 }
-            }
-            Expr::While(cond, body) => {
-                while self.eval_expr(cond, env).as_bool() {
-                    self.eval_expr(body, env);
+                Expr::Sequence(stmts, expr_) => {
+                    for stmt in stmts.iter() {
+                        self.eval_expr(stmt, &env);
+                    }
+                    expr = (**expr_).clone();
+                    continue;
                 }
-                Value::Unit
+                Expr::If(cond, t, f) => {
+                    if self.eval_expr(cond, &env).as_bool() {
+                        expr = (**t).clone();
+                    } else {
+                        expr = (**f).clone();
+                    }
+                    continue;
+                }
+                Expr::While(cond, body) => {
+                    while self.eval_expr(cond, &env).as_bool() {
+                        self.eval_expr(body, &env);
+                    }
+                    return Value::Unit;
+                }
             }
         }
     }
