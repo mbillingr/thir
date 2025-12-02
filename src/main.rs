@@ -13,6 +13,7 @@ mod scheme;
 mod specific_inference;
 mod specifics;
 mod substitutions;
+mod surface;
 mod type_inference;
 mod types;
 mod unification;
@@ -27,7 +28,8 @@ use crate::specific_inference::{
     ti_program, Alt, BindGroup, Expl, Expr, Impl, Literal, Pat, Program,
 };
 use crate::specifics::{add_core_classes, add_num_classes};
-use crate::types::Type;
+use crate::types::{Tycon, Type};
+use std::rc::Rc;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -38,7 +40,7 @@ fn main() {
 
     // todo: these should be populated by class declarations
     //       actually, they should be accessed using Expr::Const
-    let initial_assumptions = vec![Assump {
+    let mut initial_assumptions = vec![Assump {
         i: "show".into(),
         sc: Scheme::Forall(
             list![Kind::Star],
@@ -48,6 +50,25 @@ fn main() {
             ),
         ),
     }];
+
+    let tlst = Type::TApp(Rc::new((
+        Type::TCon(Tycon("List".into(), Kind::kfun(Kind::Star, Kind::Star))),
+        Type::TGen(0),
+    )));
+    initial_assumptions.push(Assump {
+        i: "cons".into(),
+        sc: Scheme::Forall(
+            list![Kind::Star],
+            Qual(
+                vec![],
+                Type::func(Type::TGen(0), Type::func(tlst.clone(), tlst.clone())),
+            ),
+        ),
+    });
+    initial_assumptions.push(Assump {
+        i: "nil".into(),
+        sc: Scheme::Forall(list![Kind::Star], Qual(vec![], tlst.clone())),
+    });
 
     let prog = Program(vec![BindGroup(
         vec![
@@ -105,7 +126,7 @@ fn main() {
                 Scheme::Forall(list![], Qual(vec![], Type::t_int())),
                 vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
             ),*/
-            Expl(
+            /*Expl(
                 "show-int".into(),
                 Scheme::Forall(
                     list![],
@@ -123,34 +144,50 @@ fn main() {
                         Expr::Lit(Literal::Int(42)).into(),
                     ),
                 )],
-            ),
+            ),*/
         ],
-        vec![/*vec![
-            /*Impl(
-                "a-const".into(),
-                vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
-            ),*/
-            /*Impl(
-                "bar".into(),
+        vec![
+            /*vec![
+                /*Impl(
+                    "a-const".into(),
+                    vec![Alt(vec![], Expr::Lit(Literal::Int(42)).into())],
+                ),*/
+                /*Impl(
+                    "bar".into(),
+                    vec![Alt(
+                        vec![],
+                        Expr::App(
+                            Expr::Var("ident".into()).into(),
+                            Expr::Lit(Literal::Int(42)).into(),
+                        ),
+                    )],
+                ),
+                Impl(
+                    "baz".into(),
+                    vec![Alt(
+                        vec![],
+                        Expr::App(
+                            Expr::Var("ident".into()).into(),
+                            Expr::Var("ident".into()).into(),
+                        ),
+                    )],
+                ),*/
+            ]*/
+            vec![Impl(
+                "foo".into(),
                 vec![Alt(
                     vec![],
                     Expr::App(
-                        Expr::Var("ident".into()).into(),
-                        Expr::Lit(Literal::Int(42)).into(),
+                        Expr::App(
+                            Expr::Var("cons".into()).into(),
+                            Expr::Lit(Literal::Int(0)).into(),
+                        )
+                        .into(),
+                        Expr::Var("nil".into()).into(),
                     ),
                 )],
-            ),
-            Impl(
-                "baz".into(),
-                vec![Alt(
-                    vec![],
-                    Expr::App(
-                        Expr::Var("ident".into()).into(),
-                        Expr::Var("ident".into()).into(),
-                    ),
-                )],
-            ),*/
-        ]*/],
+            )],
+        ],
     )]);
 
     let r = ti_program(&ce, initial_assumptions, &prog);
