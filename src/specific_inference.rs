@@ -13,17 +13,20 @@ use crate::{Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 
+#[derive(Clone)]
 pub enum Literal {
     Int(i64),
     Char(char),
     Rat(f64),
     Str(String),
+    Sym(Id),
 }
 
 fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
     match l {
         Literal::Char(_) => Ok((vec![], Type::t_char())),
         Literal::Str(_) => Ok((vec![], Type::t_string())),
+        Literal::Sym(_) => Ok((vec![], Type::t_symbol())),
         Literal::Int(_) => {
             let v = ti.new_tvar(Kind::Star);
             Ok((vec![Pred::IsIn("Num".into(), v.clone())], v))
@@ -35,6 +38,7 @@ fn ti_lit(ti: &mut TI, l: &Literal) -> crate::Result<(Vec<Pred>, Type)> {
     }
 }
 
+#[derive(Clone)]
 pub enum Pat {
     PVar(Id),
     PWildcard,
@@ -125,6 +129,7 @@ fn ti_pats(ti: &mut TI, pats: &[Pat]) -> crate::Result<(Vec<Pred>, Vec<Assump>, 
     Ok((ps, as_, ts))
 }
 
+#[derive(Clone)]
 pub enum Expr {
     Var(Id),
     Lit(Literal),
@@ -133,7 +138,7 @@ pub enum Expr {
     Let(BindGroup, Rc<Expr>),
 }
 
-fn ti_expr(
+pub fn ti_expr(
     ti: &mut TI,
     ce: &ClassEnv,
     ass: &[Assump],
@@ -172,6 +177,7 @@ fn ti_expr(
     }
 }
 
+#[derive(Clone)]
 pub struct Alt(pub Vec<Pat>, pub Expr);
 
 fn ti_alt(
@@ -225,9 +231,10 @@ fn split(
 }
 
 /// Explicitly typed binding
+#[derive(Clone)]
 pub struct Expl(pub Id, pub Scheme, pub Vec<Alt>);
 
-fn ti_expl(
+pub fn ti_expl(
     ti: &mut TI,
     ce: &ClassEnv,
     ass: &[Assump],
@@ -260,6 +267,7 @@ fn ti_expl(
 }
 
 /// Implicitly typed binding
+#[derive(Clone)]
 pub struct Impl(pub Id, pub Vec<Alt>);
 
 fn restricted(bs: &[Impl]) -> bool {
@@ -312,6 +320,7 @@ fn ti_impls(
     }
 }
 
+#[derive(Clone)]
 pub struct BindGroup(pub Vec<Expl>, pub Vec<Vec<Impl>>);
 
 fn ti_bindgroup(
@@ -384,8 +393,12 @@ pub fn ti_program(
     let (ps, as_) = ti_seq(ti_bindgroup, &mut ti, ce, ass, bgs)?;
     //println!("{:#?}", ps);
     //println!("{:#?}", as_);
+    finalize(ti, ce, &ps, &as_)
+}
+
+pub fn finalize<T: Types>(ti: TI, ce: &ClassEnv, ps: &[Pred], x: &T) -> crate::Result<T> {
     let s = &ti.get_subst();
-    let rs = ce.reduce(&s.apply(&ps))?;
+    let rs = ce.reduce(&s.apply(ps))?;
     let s_ = default_subst(ce, vec![], &rs)?;
-    Ok(s_.compose(s).apply(&as_))
+    Ok(s_.compose(s).apply(x))
 }

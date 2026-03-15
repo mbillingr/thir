@@ -75,6 +75,18 @@ impl<T> List<T> {
         ListIter(&self)
     }
 
+    pub fn tail(&self, mut n: usize) -> Option<&Self> {
+        let mut tail = self;
+        while n > 0 {
+            n -= 1;
+            match self {
+                Self::Nil => return None,
+                Self::Elem(e) => tail = &e.1,
+            }
+        }
+        Some(tail)
+    }
+
     pub fn concat<I>(ls: I) -> Self
     where
         T: Clone,
@@ -106,6 +118,13 @@ impl<T> List<T> {
             Self::Nil => false,
             Self::Elem(e) if &e.0 == x => true,
             Self::Elem(e) => e.1.contains(x),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Nil => 0,
+            Self::Elem(e) => 1 + e.1.len(),
         }
     }
 }

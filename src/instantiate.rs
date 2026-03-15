@@ -1,6 +1,7 @@
 use crate::lists::List;
 use crate::predicates::Pred;
 use crate::qualified::Qual;
+use crate::scheme::Scheme;
 use crate::types::Type;
 
 pub trait Instantiate {
@@ -42,5 +43,22 @@ impl Instantiate for Pred {
         match self {
             Pred::IsIn(c, t) => Pred::IsIn(c.clone(), t.inst(ts)),
         }
+    }
+}
+
+impl Instantiate for Scheme {
+    fn inst(&self, ts: &[Type]) -> Self {
+        let Scheme::Forall(ks, qt) = self;
+
+        assert!(ks.len() >= ts.len());
+
+        let ks_ = ks.tail(ts.len()).unwrap().clone();
+
+        let mut ts_ = ts.to_vec();
+        for i in 0..ks.len()-ts.len() {
+            ts_.push(Type::TGen(i));
+        }
+
+        Scheme::Forall(ks_, qt.inst(&ts_))
     }
 }

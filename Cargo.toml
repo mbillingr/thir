@@ -6,3 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+sexpr_parser = "0.3"
+ustr = "1.1"
+im-rc = "15.1"
