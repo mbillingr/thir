@@ -3,12 +3,17 @@
 
 use crate::instantiate::Instantiate;
 use crate::substitutions::Types;
+use chumsky::input::Input;
+use chumsky::Parser;
 mod ambiguity;
 mod assumptions;
+mod ast;
 mod classes;
 mod instantiate;
 mod kinds;
 mod lists;
+mod parsing_ast;
+mod parsing_tokenize;
 mod predicates;
 mod qualified;
 mod scheme;
@@ -22,6 +27,8 @@ mod unification;
 use crate::assumptions::Assump;
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
+use crate::parsing_ast::type_expr;
+use crate::parsing_tokenize::lexer;
 use crate::predicates::Pred;
 use crate::qualified::Qual;
 use crate::scheme::Scheme;
@@ -30,7 +37,8 @@ use crate::specifics::{add_core_classes, add_num_classes};
 use crate::substitutions::Subst;
 use crate::type_inference::TI;
 use crate::types::{Tycon, Type, Tyvar};
-use sexpr_parser::{Parser, SexprFactory};
+use ariadne::{sources, Color, Label, Report, ReportKind};
+use sexpr_parser::{Parser as OtherParser, SexprFactory};
 use std::collections::HashSet;
 use std::io::{self, BufRead, Write};
 use std::rc::Rc;
@@ -90,6 +98,49 @@ fn main() {
                 }
             }
         }
+
+        let tokens = lexer().parse(&buf).into_result().unwrap();
+
+        let maybe_texpr = type_expr()
+            .parse(tokens.split_spanned((0..buf.len()).into()))
+            .into_result()
+            .unwrap();
+
+        println!("{:?}", maybe_texpr);
+
+        let x = match lexer().parse(&buf).into_result() {
+            Ok(tokens) => tokens,
+            Err(errs) => {
+                let fname = "REPL";
+                for err in errs {
+                    Report::build(ReportKind::Error, (fname, err.span().into_range()))
+                        .with_config(
+                            ariadne::Config::new().with_index_type(ariadne::IndexType::Byte),
+                        )
+                        .with_message(err.reason())
+                        .with_label(
+                            Label::new((fname, err.span().into_range()))
+                                .with_message(
+                                    err.found()
+                                        .map(char::to_string)
+                                        .unwrap_or_else(|| "end of input".to_string()),
+                                )
+                                .with_color(Color::Red),
+                        )
+                        .with_labels(err.contexts().map(|(l, s)| {
+                            Label::new((fname, s.into_range()))
+                                .with_message(format!("while parsing this {l}"))
+                                .with_color(Color::Yellow)
+                        }))
+                        .finish()
+                        .eprint(sources([(fname, buf.as_str())]))
+                        .unwrap();
+                }
+                continue;
+            }
+        };
+
+        println!("{:?}", x);
 
         match SF.parse(&buf) {
             Err(e) => eprintln!("Parse error: {:?}", e),
