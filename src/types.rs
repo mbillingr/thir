@@ -28,10 +28,22 @@ impl Debug for Type {
         match self {
             Type::TVar(tv) => write!(f, "{}", tv.0),
             Type::TCon(tc) => write!(f, "{}", tc.0),
-            Type::TApp(rc) => write!(f, "({:?} {:?})", rc.0, rc.1),
+            Type::TApp(rc) => {
+                write!(f, "(")?;
+                dbg_tapp(&rc, f)?;
+                write!(f, ")")
+            }
             Type::TGen(k) => write!(f, "'{k}"),
         }
     }
+}
+
+fn dbg_tapp((c, a): &(Type, Type), f: &mut Formatter<'_>) -> std::fmt::Result {
+    match c {
+        Type::TApp(rc) => dbg_tapp(rc, f),
+        _ => write!(f, "{:?}", c),
+    }?;
+    write!(f, " {:?}", a)
 }
 
 /// A type variable
@@ -43,9 +55,22 @@ pub struct Tyvar(pub Id, pub Kind);
 pub struct Tycon(pub Id, pub Kind);
 
 impl Type {
+    pub fn tvar(name: Id, kind: Kind) -> Type {
+        Type::TVar(Tyvar(name, kind))
+    }
+
     /// construct a type application (convenience method)
     pub fn tapp(a: Type, b: Type) -> Type {
         Type::TApp(Rc::new((a, b)))
+    }
+
+    pub fn get_head_name(&self) -> Option<Id> {
+        match self {
+            Type::TVar(tv) => Some(tv.0),
+            Type::TCon(tc) => Some(tc.0),
+            Type::TApp(app) => app.0.get_head_name(),
+            Type::TGen(_) => None,
+        }
     }
 }
 

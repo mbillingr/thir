@@ -19,6 +19,11 @@ impl Type {
         Type::TCon(Tycon("String".into(), Kind::Star))
     }
 
+    /// construct the symbol type
+    pub fn t_symbol() -> Self {
+        Type::TCon(Tycon("Symbol".into(), Kind::Star))
+    }
+
     /// construct the int type
     pub fn t_int() -> Self {
         Type::TCon(Tycon("Int".into(), Kind::Star))
@@ -111,6 +116,13 @@ pub fn add_num_classes() -> EnvTransformer {
         ));
 
     et.compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_int())))
+        .compose(ET::add_inst(vec![], IsIn("Eq".into(), Type::t_int())))
         .compose(ET::add_inst(vec![], IsIn("Show".into(), Type::t_int())))
         .compose(ET::add_inst(vec![], IsIn("Num".into(), Type::t_double())))
+        .compose(ET::add_inst(
+            vec![],
+            IsIn("Fractional".into(), Type::t_double()),
+        ))
+        .compose(ET::add_inst(vec![], IsIn("Eq".into(), Type::t_double())))
+        .compose(ET::add_inst(vec![], IsIn("Show".into(), Type::t_double())))
 }
