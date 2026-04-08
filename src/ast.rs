@@ -2,17 +2,17 @@ use chumsky::prelude::Spanned;
 use ustr::Ustr;
 
 #[derive(Debug)]
-struct TypeDef {
-    tname: Spanned<Ustr>,
-    params: Vec<Spanned<Ustr>>,
-    constraints: Vec<Spanned<Constraint>>,
-    variants: Vec<Spanned<VariantDef>>,
+pub struct TypeDef {
+    pub tname: Spanned<TypeName>,
+    pub params: Vec<Spanned<TypeVar>>,
+    pub constraints: Vec<Spanned<Constraint>>,
+    pub variants: Vec<Spanned<VariantDef>>,
 }
 
 #[derive(Debug)]
-struct VariantDef {
-    name: Spanned<Ustr>,
-    fields: Vec<Spanned<TExpr>>,
+pub struct VariantDef {
+    pub name: Spanned<ConstructorName>,
+    pub fields: Vec<Spanned<TExpr>>,
 }
 
 #[derive(Debug)]
@@ -23,6 +23,15 @@ pub struct Constraint {
 
 #[derive(Debug)]
 pub struct ClassName(pub Ustr);
+
+#[derive(Debug)]
+pub struct TypeName(pub Ustr);
+
+#[derive(Debug)]
+pub struct ConstructorName(pub Ustr);
+
+#[derive(Debug)]
+pub struct TypeVar(pub Ustr);
 
 #[derive(Debug)]
 pub enum TExpr {

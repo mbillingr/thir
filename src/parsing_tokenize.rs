@@ -41,7 +41,7 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Token<'src>>, extra::Er
 
 fn operator<'src>(
 ) -> impl Parser<'src, &'src str, RawToken<'src>, extra::Err<Rich<'src, char>>> + Clone {
-    one_of("/+-*=<>")
+    one_of("/+-*=<>,;.|&")
         .repeated()
         .at_least(1)
         .to_slice()

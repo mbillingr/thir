@@ -1,9 +1,57 @@
-use crate::ast::{ClassName, Constraint, TExpr};
+use crate::ast::{
+    ClassName, Constraint, ConstructorName, TExpr, TypeDef, TypeName, TypeVar, VariantDef,
+};
 use crate::parsing_tokenize::{RawToken, Token};
 use chumsky::input::MappedInput;
 use chumsky::pratt::*;
 use chumsky::prelude::*;
 use ustr::ustr;
+
+pub fn type_def<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<TypeDef>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    just(RawToken::LowerIdent("data"))
+        .ignore_then(type_name().then(typevar().repeated().collect()))
+        .then(
+            just(RawToken::LowerIdent("where"))
+                .ignore_then(
+                    constraint()
+                        .separated_by(just(RawToken::Operator(",")))
+                        .collect(),
+                )
+                .or_not()
+                .map(Option::unwrap_or_default),
+        )
+        .then(
+            just(RawToken::Operator("=")).ignore_then(
+                variant_def()
+                    .separated_by(just(RawToken::Operator("|")))
+                    .collect(),
+            ),
+        )
+        .map(|(((tname, params), constraints), variants)| TypeDef {
+            tname,
+            params,
+            constraints,
+            variants,
+        })
+        .spanned()
+}
+
+pub fn variant_def<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<VariantDef>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    constructor_name()
+        .then(type_expr().repeated().collect())
+        .map(|(name, fields)| VariantDef { name, fields })
+        .spanned()
+}
 
 pub fn constraint<'tokens, 'src: 'tokens>() -> impl Parser<
     'tokens,
@@ -24,6 +72,33 @@ pub fn class_name<'tokens, 'src: 'tokens>() -> impl Parser<
     extra::Err<Rich<'tokens, RawToken<'src>>>,
 > {
     select_ref! {RawToken::UpperIdent(cls) => ClassName(ustr(cls))}.spanned()
+}
+
+pub fn type_name<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<TypeName>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    select_ref! {RawToken::UpperIdent(cls) => TypeName(ustr(cls))}.spanned()
+}
+
+pub fn constructor_name<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<ConstructorName>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    select_ref! {RawToken::UpperIdent(cls) => ConstructorName(ustr(cls))}.spanned()
+}
+
+pub fn typevar<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<TypeVar>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    select_ref! {RawToken::LowerIdent(cls) => TypeVar(ustr(cls))}.spanned()
 }
 
 pub fn type_expr<'tokens, 'src: 'tokens>() -> impl Parser<

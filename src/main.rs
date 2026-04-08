@@ -27,7 +27,7 @@ mod unification;
 use crate::assumptions::Assump;
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
-use crate::parsing_ast::type_expr;
+use crate::parsing_ast::{type_def, type_expr};
 use crate::parsing_tokenize::lexer;
 use crate::predicates::Pred;
 use crate::qualified::Qual;
@@ -101,7 +101,7 @@ fn main() {
 
         let tokens = lexer().parse(&buf).into_result().unwrap();
 
-        let maybe_texpr = type_expr()
+        let maybe_texpr = type_def()
             .parse(tokens.split_spanned((0..buf.len()).into()))
             .into_result()
             .unwrap();
