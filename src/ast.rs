@@ -16,10 +16,13 @@ struct VariantDef {
 }
 
 #[derive(Debug)]
-struct Constraint {
-    cls: Spanned<Ustr>,
-    tys: Vec<TExpr>,
+pub struct Constraint {
+    pub cls: Spanned<ClassName>,
+    pub tys: Vec<Spanned<TExpr>>,
 }
+
+#[derive(Debug)]
+pub struct ClassName(pub Ustr);
 
 #[derive(Debug)]
 pub enum TExpr {

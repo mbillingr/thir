@@ -1,9 +1,30 @@
-use crate::ast::TExpr;
+use crate::ast::{ClassName, Constraint, TExpr};
 use crate::parsing_tokenize::{RawToken, Token};
 use chumsky::input::MappedInput;
 use chumsky::pratt::*;
 use chumsky::prelude::*;
 use ustr::ustr;
+
+pub fn constraint<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<Constraint>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    class_name()
+        .then(type_expr().repeated().at_least(1).collect())
+        .map(|(cls, tys)| Constraint { cls, tys })
+        .spanned()
+}
+
+pub fn class_name<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<ClassName>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    select_ref! {RawToken::UpperIdent(cls) => ClassName(ustr(cls))}.spanned()
+}
 
 pub fn type_expr<'tokens, 'src: 'tokens>() -> impl Parser<
     'tokens,
