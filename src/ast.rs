@@ -1,5 +1,11 @@
+use crate::specific_inference::Literal;
 use chumsky::prelude::Spanned;
 use ustr::Ustr;
+
+#[derive(Debug)]
+pub enum TopLevel {
+    TypeDef(Spanned<TypeDef>),
+}
 
 #[derive(Debug)]
 pub struct TypeDef {
@@ -37,4 +43,11 @@ pub struct TypeVar(pub Ustr);
 pub enum TExpr {
     Sym(Ustr),
     App(Box<Spanned<TExpr>>, Box<Spanned<TExpr>>),
+}
+
+#[derive(Debug)]
+pub enum Expr {
+    Literal(Literal),
+    Var(Ustr),
+    Constructor(ConstructorName),
 }

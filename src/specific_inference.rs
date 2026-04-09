@@ -13,7 +13,7 @@ use crate::{Id, Int};
 use std::iter::once;
 use std::rc::Rc;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Literal {
     Int(i64),
     Char(char),

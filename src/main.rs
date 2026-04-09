@@ -27,7 +27,7 @@ mod unification;
 use crate::assumptions::Assump;
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
-use crate::parsing_ast::{type_def, type_expr};
+use crate::parsing_ast::{toplevel, type_def, type_expr};
 use crate::parsing_tokenize::lexer;
 use crate::predicates::Pred;
 use crate::qualified::Qual;
@@ -38,8 +38,11 @@ use crate::substitutions::Subst;
 use crate::type_inference::TI;
 use crate::types::{Tycon, Type, Tyvar};
 use ariadne::{sources, Color, Label, Report, ReportKind};
+use chumsky::error::Rich;
+use chumsky::prelude::Spanned;
 use sexpr_parser::{Parser as OtherParser, SexprFactory};
 use std::collections::HashSet;
+use std::fmt::Display;
 use std::io::{self, BufRead, Write};
 use std::rc::Rc;
 use ustr::{ustr, Ustr};
@@ -99,61 +102,60 @@ fn main() {
             }
         }
 
-        let tokens = lexer().parse(&buf).into_result().unwrap();
-
-        let maybe_texpr = type_def()
-            .parse(tokens.split_spanned((0..buf.len()).into()))
-            .into_result()
-            .unwrap();
-
-        println!("{:?}", maybe_texpr);
-
-        let x = match lexer().parse(&buf).into_result() {
+        let tokens = match lexer().parse(&buf).into_result() {
             Ok(tokens) => tokens,
             Err(errs) => {
-                let fname = "REPL";
-                for err in errs {
-                    Report::build(ReportKind::Error, (fname, err.span().into_range()))
-                        .with_config(
-                            ariadne::Config::new().with_index_type(ariadne::IndexType::Byte),
-                        )
-                        .with_message(err.reason())
-                        .with_label(
-                            Label::new((fname, err.span().into_range()))
-                                .with_message(
-                                    err.found()
-                                        .map(char::to_string)
-                                        .unwrap_or_else(|| "end of input".to_string()),
-                                )
-                                .with_color(Color::Red),
-                        )
-                        .with_labels(err.contexts().map(|(l, s)| {
-                            Label::new((fname, s.into_range()))
-                                .with_message(format!("while parsing this {l}"))
-                                .with_color(Color::Yellow)
-                        }))
-                        .finish()
-                        .eprint(sources([(fname, buf.as_str())]))
-                        .unwrap();
-                }
+                report_errors(&buf, errs);
                 continue;
             }
         };
 
-        println!("{:?}", x);
+        println!("{:?}", tokens);
 
-        match SF.parse(&buf) {
-            Err(e) => eprintln!("Parse error: {:?}", e),
-            Ok(sexpr) => {
-                let res = parse_toplevel(&sexpr).and_then(|tl| {
-                    process_toplevel(&tl, &mut ce, &mut cls_methods, &mut tenv, &mut ass)
-                });
-                match res {
-                    Ok(()) => (),
-                    Err(e) => eprintln!("Error: {:?}", e),
-                }
+        let top = match toplevel()
+            .parse(tokens.split_spanned((0..buf.len()).into()))
+            .into_result()
+        {
+            Ok(top) => top,
+            Err(errs) => {
+                report_errors(&buf, errs);
+                continue;
             }
+        };
+
+        println!("{:?}", top);
+
+        let res = process_toplevel(&top, &mut ce, &mut cls_methods, &mut tenv, &mut ass);
+        match res {
+            Ok(()) => (),
+            Err(e) => eprintln!("Error: {:?}", e),
         }
+    }
+}
+
+fn report_errors<T: Display>(buf: &str, errs: Vec<Rich<T>>) {
+    let fname = "REPL";
+    for err in errs {
+        Report::build(ReportKind::Error, (fname, err.span().into_range()))
+            .with_config(ariadne::Config::new().with_index_type(ariadne::IndexType::Byte))
+            .with_message(err.reason())
+            .with_label(
+                Label::new((fname, err.span().into_range()))
+                    .with_message(
+                        err.found()
+                            .map(T::to_string)
+                            .unwrap_or_else(|| "end of input".to_string()),
+                    )
+                    .with_color(Color::Red),
+            )
+            .with_labels(err.contexts().map(|(l, s)| {
+                Label::new((fname, s.into_range()))
+                    .with_message(format!("while parsing this {l}"))
+                    .with_color(Color::Yellow)
+            }))
+            .finish()
+            .eprint(sources([(fname, buf)]))
+            .unwrap();
     }
 }
 
@@ -489,123 +491,124 @@ fn parse_symbol(sexpr: &S) -> Result<Ustr> {
 }
 
 fn process_toplevel(
-    tl: &TopLevel,
+    tl: &Spanned<ast::TopLevel>,
     ce: &mut ClassEnv,
     cls_methods: &mut im_rc::HashMap<Ustr, Vec<Ustr>>,
     tenv: &mut im_rc::HashMap<Ustr, Type>,
     ass: &mut Vec<Assump>,
 ) -> Result<()> {
-    match tl {
-        TopLevel::TypeDef(def) => {
+    match &tl.inner {
+        ast::TopLevel::TypeDef(def) => {
             let (ty, ass_) = process_typedef(&def, &tenv)?;
-            tenv.insert(def.tname, ty);
+            tenv.insert(def.tname.inner.0, ty);
             ass.extend(ass_);
-        }
+        } /*TopLevel::ClassDef(def) => {
+              let ce_ = EnvTransformer::add_class(def.name, def.supers.clone())
+                  .apply(&ce)
+                  .unwrap();
 
-        TopLevel::ClassDef(def) => {
-            let ce_ = EnvTransformer::add_class(def.name, def.supers.clone())
-                .apply(&ce)
-                .unwrap();
+              let mut cls_tenv = tenv.clone();
 
-            let mut cls_tenv = tenv.clone();
+              let tvs: Vec<_> = def
+                  .vars
+                  .iter()
+                  .map(|v| Tyvar(v.clone(), Kind::Star))
+                  .collect();
+              for (&v, tv) in def.vars.iter().zip(&tvs) {
+                  let tvar = Type::TVar(tv.clone());
+                  cls_tenv.insert(v, tvar.clone());
+              }
 
-            let tvs: Vec<_> = def
-                .vars
-                .iter()
-                .map(|v| Tyvar(v.clone(), Kind::Star))
-                .collect();
-            for (&v, tv) in def.vars.iter().zip(&tvs) {
-                let tvar = Type::TVar(tv.clone());
-                cls_tenv.insert(v, tvar.clone());
-            }
+              if tvs.len() != 1 {
+                  return Err("class must have exactly one type variable".into());
+              }
 
-            if tvs.len() != 1 {
-                return Err("class must have exactly one type variable".into());
-            }
+              let tvar = Type::TVar(tvs[0].clone());
 
-            let tvar = Type::TVar(tvs[0].clone());
+              for decl in &def.methods {
+                  let ty = process_type_expr(&decl.ty, &cls_tenv)?;
+                  let sc = Scheme::quantify_by_var_order(
+                      &tvs,
+                      &Qual(vec![Pred::IsIn(def.name, tvar.clone())], ty),
+                  );
 
-            for decl in &def.methods {
-                let ty = process_type_expr(&decl.ty, &cls_tenv)?;
-                let sc = Scheme::quantify_by_var_order(
-                    &tvs,
-                    &Qual(vec![Pred::IsIn(def.name, tvar.clone())], ty),
-                );
+                  // todo: not sure if I want class methods to be global functions
+                  ass.push(Assump { i: decl.name, sc });
 
-                // todo: not sure if I want class methods to be global functions
-                ass.push(Assump { i: decl.name, sc });
+                  cls_methods.entry(def.name).or_default().push(decl.name);
+              }
 
-                cls_methods.entry(def.name).or_default().push(decl.name);
-            }
+              *ce = ce_;
+          }
 
-            *ce = ce_;
-        }
+          TopLevel::ClassImpl(impl_) => {
+              if impl_.tys.len() != 1 {
+                  return Err("classes support exactly one type parameter".into());
+              }
 
-        TopLevel::ClassImpl(impl_) => {
-            if impl_.tys.len() != 1 {
-                return Err("classes support exactly one type parameter".into());
-            }
+              let ty = process_type_expr(&impl_.tys[0], &tenv)?;
 
-            let ty = process_type_expr(&impl_.tys[0], &tenv)?;
+              let ce_ =
+                  EnvTransformer::add_inst(vec![], Pred::IsIn(impl_.cls, ty.clone())).apply(&ce)?;
 
-            let ce_ =
-                EnvTransformer::add_inst(vec![], Pred::IsIn(impl_.cls, ty.clone())).apply(&ce)?;
+              let mut required_methods: HashSet<_> = cls_methods
+                  .get(&impl_.cls)
+                  .into_iter()
+                  .flatten()
+                  .copied()
+                  .collect();
 
-            let mut required_methods: HashSet<_> = cls_methods
-                .get(&impl_.cls)
-                .into_iter()
-                .flatten()
-                .copied()
-                .collect();
+              for Definition { name: mname, alts } in &impl_.methods {
+                  if !required_methods.remove(mname) {
+                      return Err(format!("Unexpected method: {}", mname));
+                  }
 
-            for Definition { name: mname, alts } in &impl_.methods {
-                if !required_methods.remove(mname) {
-                    return Err(format!("Unexpected method: {}", mname));
-                }
+                  let Assump { sc, .. } = ass
+                      .iter()
+                      .rev()
+                      .find(|&a| a.i == *mname)
+                      .ok_or("method in assumptions")?;
 
-                let Assump { sc, .. } = ass
-                    .iter()
-                    .rev()
-                    .find(|&a| a.i == *mname)
-                    .ok_or("method in assumptions")?;
+                  let mut ti = TI::new();
 
-                let mut ti = TI::new();
+                  let sc = dbg!(sc.inst(&[ty.clone()]));
+                  let expl = Expl(*mname, sc.clone(), alts.clone());
 
-                let sc = dbg!(sc.inst(&[ty.clone()]));
-                let expl = Expl(*mname, sc.clone(), alts.clone());
+                  let ps = ti_expl(&mut ti, &ce_, &ass, &expl)?;
+                  println!("Inferred: {:?}, {:?}", ps, ti);
+              }
 
-                let ps = ti_expl(&mut ti, &ce_, &ass, &expl)?;
-                println!("Inferred: {:?}, {:?}", ps, ti);
-            }
+              if !required_methods.is_empty() {
+                  return Err(format!("Missing methods: {:?}", required_methods));
+              }
 
-            if !required_methods.is_empty() {
-                return Err(format!("Missing methods: {:?}", required_methods));
-            }
+              *ce = ce_;
+          }
 
-            *ce = ce_;
-        }
+          TopLevel::Expr(xp) => {
+              let mut ti = TI::new();
 
-        TopLevel::Expr(xp) => {
-            let mut ti = TI::new();
-
-            match ti_expr(&mut ti, &ce, &ass, &xp).and_then(|(ps, t)| finalize(ti, &ce, &ps, &t)) {
-                Ok(t) => {
-                    println!("Inferred: {:?}", t);
-                }
-                Err(e) => return Err(e),
-            }
-        }
+              match ti_expr(&mut ti, &ce, &ass, &xp).and_then(|(ps, t)| finalize(ti, &ce, &ps, &t)) {
+                  Ok(t) => {
+                      println!("Inferred: {:?}", t);
+                  }
+                  Err(e) => return Err(e),
+              }
+          }*/
     }
 
     Ok(())
 }
 
-fn process_typedef(td: &TypeDef, tenv: &im_rc::HashMap<Ustr, Type>) -> Result<(Type, Vec<Assump>)> {
+fn process_typedef(
+    td: &Spanned<ast::TypeDef>,
+    tenv: &im_rc::HashMap<Ustr, Type>,
+) -> Result<(Type, Vec<Assump>)> {
     // assuming all parameters are of kind *
     let vars: Vec<_> = td
         .params
         .iter()
-        .map(|p| Tyvar(p.clone(), Kind::Star))
+        .map(|p| Tyvar(p.inner.0.clone(), Kind::Star))
         .collect();
 
     let mut kind = Kind::Star;
@@ -613,7 +616,7 @@ fn process_typedef(td: &TypeDef, tenv: &im_rc::HashMap<Ustr, Type>) -> Result<(T
         kind = Kind::kfun(k.clone(), kind);
     }
 
-    let tcons = Type::TCon(Tycon(td.tname, kind));
+    let tcons = Type::TCon(Tycon(td.tname.inner.0, kind));
 
     let mut dtype = tcons.clone();
     for v in vars.iter().cloned() {
@@ -621,22 +624,30 @@ fn process_typedef(td: &TypeDef, tenv: &im_rc::HashMap<Ustr, Type>) -> Result<(T
     }
 
     let mut preds = vec![];
-    for (c, vs) in &td.constraints {
-        for v in vs {
+    for Spanned {
+        inner: ast::Constraint { cls, tys },
+        ..
+    } in &td.constraints
+    {
+        for t in tys {
+            let v = match &t.inner {
+                ast::TExpr::Sym(s) => s,
+                _ => unimplemented!(),
+            };
             let tv = vars
                 .iter()
                 .find(|Tyvar(name, _)| name == v)
                 .ok_or_else(|| format!("unbound type variable: {}", v))?
                 .clone();
-            preds.push(Pred::IsIn(c.clone(), Type::TVar(tv.clone())));
-            preds.push(Pred::IsIn(c.clone(), Type::TVar(tv)));
+            preds.push(Pred::IsIn(cls.inner.0.clone(), Type::TVar(tv.clone())));
+            preds.push(Pred::IsIn(cls.inner.0.clone(), Type::TVar(tv)));
         }
     }
 
     let mut local_tenv = tenv.clone();
 
     // allow recursive types
-    local_tenv.insert(td.tname, tcons.clone());
+    local_tenv.insert(td.tname.inner.0, tcons.clone());
 
     for v in vars.iter().cloned() {
         local_tenv.insert(v.0.clone(), Type::TVar(v));
@@ -653,7 +664,7 @@ fn process_typedef(td: &TypeDef, tenv: &im_rc::HashMap<Ustr, Type>) -> Result<(T
 
         let sc = Scheme::quantify_by_var_order(&vars, &Qual(preds.clone(), vtype));
         ass.push(Assump {
-            i: variant.name,
+            i: variant.name.inner.0,
             sc,
         })
     }
@@ -661,18 +672,17 @@ fn process_typedef(td: &TypeDef, tenv: &im_rc::HashMap<Ustr, Type>) -> Result<(T
     Ok((tcons, ass))
 }
 
-fn process_type_expr(tx: &TExpr, tenv: &im_rc::HashMap<Ustr, Type>) -> Result<Type> {
-    match tx {
-        TExpr::Sym(name) => tenv
+fn process_type_expr(tx: &Spanned<ast::TExpr>, tenv: &im_rc::HashMap<Ustr, Type>) -> Result<Type> {
+    match &tx.inner {
+        ast::TExpr::Sym(name) => tenv
             .get(&name)
             .cloned()
             .ok_or_else(|| format!("unknown type: {}", name)),
 
-        TExpr::App(xs) => {
-            let f = process_type_expr(&xs[0], tenv);
-            xs.iter().skip(1).fold(f, |acc, x| {
-                Ok(Type::tapp(acc?, process_type_expr(x, tenv)?))
-            })
+        ast::TExpr::App(lhs, rhs) => {
+            let f = process_type_expr(lhs, tenv)?;
+            let a = process_type_expr(rhs, tenv)?;
+            Ok(Type::tapp(f, a))
         }
     }
 }

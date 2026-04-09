@@ -1,11 +1,20 @@
 use crate::ast::{
-    ClassName, Constraint, ConstructorName, TExpr, TypeDef, TypeName, TypeVar, VariantDef,
+    ClassName, Constraint, ConstructorName, TExpr, TopLevel, TypeDef, TypeName, TypeVar, VariantDef,
 };
 use crate::parsing_tokenize::{RawToken, Token};
 use chumsky::input::MappedInput;
 use chumsky::pratt::*;
 use chumsky::prelude::*;
 use ustr::ustr;
+
+pub fn toplevel<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<TopLevel>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    choice((type_def().map(TopLevel::TypeDef),)).spanned()
+}
 
 pub fn type_def<'tokens, 'src: 'tokens>() -> impl Parser<
     'tokens,

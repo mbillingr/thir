@@ -11,6 +11,15 @@ pub enum RawToken<'a> {
     Parenthised(Vec<Token<'a>>),
 }
 
+impl std::fmt::Display for RawToken<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            RawToken::Parenthised(_) => write!(f, "token tree"),
+            _ => write!(f, "{:?}", self),
+        }
+    }
+}
+
 pub type Token<'a> = Spanned<RawToken<'a>>;
 
 pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Token<'src>>, extra::Err<Rich<'src, char>>>
