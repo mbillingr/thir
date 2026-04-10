@@ -1,10 +1,12 @@
+use crate::specific_inference;
 use crate::specific_inference::Literal;
-use chumsky::prelude::Spanned;
+use chumsky::prelude::{todo, Spanned};
 use ustr::Ustr;
 
 #[derive(Debug)]
 pub enum TopLevel {
     TypeDef(Spanned<TypeDef>),
+    Expr(Spanned<Expr>),
 }
 
 #[derive(Debug)]
@@ -49,5 +51,22 @@ pub enum TExpr {
 pub enum Expr {
     Literal(Literal),
     Var(Ustr),
-    Constructor(ConstructorName),
+    App(Vec<Spanned<Expr>>),
+}
+
+pub fn convert_expression(expr: &Spanned<Expr>) -> specific_inference::Expr {
+    match &expr.inner {
+        Expr::Literal(lit) => specific_inference::Expr::Lit(lit.clone()),
+        Expr::Var(name) => specific_inference::Expr::Var(name.clone()),
+        Expr::App(xs) => match xs.as_slice() {
+            [] => unimplemented!(),
+            [f] => todo!(),
+            [f, a] => specific_inference::Expr::App(
+                convert_expression(f).into(),
+                convert_expression(a).into(),
+            ),
+            [f, args @ ..] => todo!(),
+        },
+        _ => todo!(),
+    }
 }

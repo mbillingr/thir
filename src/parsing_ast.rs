@@ -1,7 +1,9 @@
 use crate::ast::{
-    ClassName, Constraint, ConstructorName, TExpr, TopLevel, TypeDef, TypeName, TypeVar, VariantDef,
+    ClassName, Constraint, ConstructorName, Expr, TExpr, TopLevel, TypeDef, TypeName, TypeVar,
+    VariantDef,
 };
 use crate::parsing_tokenize::{RawToken, Token};
+use crate::specific_inference::Literal;
 use chumsky::input::MappedInput;
 use chumsky::pratt::*;
 use chumsky::prelude::*;
@@ -13,7 +15,11 @@ pub fn toplevel<'tokens, 'src: 'tokens>() -> impl Parser<
     Spanned<TopLevel>,
     extra::Err<Rich<'tokens, RawToken<'src>>>,
 > {
-    choice((type_def().map(TopLevel::TypeDef),)).spanned()
+    choice((
+        type_def().map(TopLevel::TypeDef),
+        expr().map(TopLevel::Expr),
+    ))
+    .spanned()
 }
 
 pub fn type_def<'tokens, 'src: 'tokens>() -> impl Parser<
@@ -57,6 +63,7 @@ pub fn variant_def<'tokens, 'src: 'tokens>() -> impl Parser<
     extra::Err<Rich<'tokens, RawToken<'src>>>,
 > {
     constructor_name()
+        .spanned()
         .then(type_expr().repeated().collect())
         .map(|(name, fields)| VariantDef { name, fields })
         .spanned()
@@ -95,10 +102,10 @@ pub fn type_name<'tokens, 'src: 'tokens>() -> impl Parser<
 pub fn constructor_name<'tokens, 'src: 'tokens>() -> impl Parser<
     'tokens,
     MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
-    Spanned<ConstructorName>,
+    ConstructorName,
     extra::Err<Rich<'tokens, RawToken<'src>>>,
 > {
-    select_ref! {RawToken::UpperIdent(cls) => ConstructorName(ustr(cls))}.spanned()
+    select_ref! {RawToken::UpperIdent(cls) => ConstructorName(ustr(cls))}
 }
 
 pub fn typevar<'tokens, 'src: 'tokens>() -> impl Parser<
@@ -151,4 +158,30 @@ pub fn type_expr<'tokens, 'src: 'tokens>() -> impl Parser<
         ))
     })
     .labelled("type expression")
+}
+
+pub fn expr<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<Expr>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    recursive(|expr| {
+        choice((
+            select_ref! {
+                RawToken::Int(s) => Expr::Literal(Literal::Int(s.parse().unwrap())),
+                RawToken::Float(s) => Expr::Literal(Literal::Rat(s.parse().unwrap())),
+                RawToken::Operator(s) => Expr::Var(ustr(s)),
+                RawToken::LowerIdent(s) => Expr::Var(ustr(s)),
+                RawToken::UpperIdent(s) => Expr::Var(ustr(s)),
+            },
+            expr.repeated()
+                .collect()
+                .nested_in(select_ref! {
+                    RawToken::Parenthised(ts) = e => ts.split_spanned(e.span())
+                })
+                .map(|xs| Expr::App(xs)),
+        ))
+        .spanned()
+    })
 }

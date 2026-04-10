@@ -25,6 +25,7 @@ mod types;
 mod unification;
 
 use crate::assumptions::Assump;
+use crate::ast::convert_expression;
 use crate::classes::{ClassEnv, EnvTransformer};
 use crate::kinds::Kind;
 use crate::parsing_ast::{toplevel, type_def, type_expr};
@@ -503,98 +504,99 @@ fn process_toplevel(
             tenv.insert(def.tname.inner.0, ty);
             ass.extend(ass_);
         } /*TopLevel::ClassDef(def) => {
-              let ce_ = EnvTransformer::add_class(def.name, def.supers.clone())
-                  .apply(&ce)
-                  .unwrap();
+        let ce_ = EnvTransformer::add_class(def.name, def.supers.clone())
+        .apply(&ce)
+        .unwrap();
 
-              let mut cls_tenv = tenv.clone();
+        let mut cls_tenv = tenv.clone();
 
-              let tvs: Vec<_> = def
-                  .vars
-                  .iter()
-                  .map(|v| Tyvar(v.clone(), Kind::Star))
-                  .collect();
-              for (&v, tv) in def.vars.iter().zip(&tvs) {
-                  let tvar = Type::TVar(tv.clone());
-                  cls_tenv.insert(v, tvar.clone());
-              }
+        let tvs: Vec<_> = def
+        .vars
+        .iter()
+        .map(|v| Tyvar(v.clone(), Kind::Star))
+        .collect();
+        for (&v, tv) in def.vars.iter().zip(&tvs) {
+        let tvar = Type::TVar(tv.clone());
+        cls_tenv.insert(v, tvar.clone());
+        }
 
-              if tvs.len() != 1 {
-                  return Err("class must have exactly one type variable".into());
-              }
+        if tvs.len() != 1 {
+        return Err("class must have exactly one type variable".into());
+        }
 
-              let tvar = Type::TVar(tvs[0].clone());
+        let tvar = Type::TVar(tvs[0].clone());
 
-              for decl in &def.methods {
-                  let ty = process_type_expr(&decl.ty, &cls_tenv)?;
-                  let sc = Scheme::quantify_by_var_order(
-                      &tvs,
-                      &Qual(vec![Pred::IsIn(def.name, tvar.clone())], ty),
-                  );
+        for decl in &def.methods {
+        let ty = process_type_expr(&decl.ty, &cls_tenv)?;
+        let sc = Scheme::quantify_by_var_order(
+        &tvs,
+        &Qual(vec![Pred::IsIn(def.name, tvar.clone())], ty),
+        );
 
-                  // todo: not sure if I want class methods to be global functions
-                  ass.push(Assump { i: decl.name, sc });
+        // todo: not sure if I want class methods to be global functions
+        ass.push(Assump { i: decl.name, sc });
 
-                  cls_methods.entry(def.name).or_default().push(decl.name);
-              }
+        cls_methods.entry(def.name).or_default().push(decl.name);
+        }
 
-              *ce = ce_;
-          }
+        *ce = ce_;
+        }
 
-          TopLevel::ClassImpl(impl_) => {
-              if impl_.tys.len() != 1 {
-                  return Err("classes support exactly one type parameter".into());
-              }
+        TopLevel::ClassImpl(impl_) => {
+        if impl_.tys.len() != 1 {
+        return Err("classes support exactly one type parameter".into());
+        }
 
-              let ty = process_type_expr(&impl_.tys[0], &tenv)?;
+        let ty = process_type_expr(&impl_.tys[0], &tenv)?;
 
-              let ce_ =
-                  EnvTransformer::add_inst(vec![], Pred::IsIn(impl_.cls, ty.clone())).apply(&ce)?;
+        let ce_ =
+        EnvTransformer::add_inst(vec![], Pred::IsIn(impl_.cls, ty.clone())).apply(&ce)?;
 
-              let mut required_methods: HashSet<_> = cls_methods
-                  .get(&impl_.cls)
-                  .into_iter()
-                  .flatten()
-                  .copied()
-                  .collect();
+        let mut required_methods: HashSet<_> = cls_methods
+        .get(&impl_.cls)
+        .into_iter()
+        .flatten()
+        .copied()
+        .collect();
 
-              for Definition { name: mname, alts } in &impl_.methods {
-                  if !required_methods.remove(mname) {
-                      return Err(format!("Unexpected method: {}", mname));
-                  }
+        for Definition { name: mname, alts } in &impl_.methods {
+        if !required_methods.remove(mname) {
+        return Err(format!("Unexpected method: {}", mname));
+        }
 
-                  let Assump { sc, .. } = ass
-                      .iter()
-                      .rev()
-                      .find(|&a| a.i == *mname)
-                      .ok_or("method in assumptions")?;
+        let Assump { sc, .. } = ass
+        .iter()
+        .rev()
+        .find(|&a| a.i == *mname)
+        .ok_or("method in assumptions")?;
 
-                  let mut ti = TI::new();
+        let mut ti = TI::new();
 
-                  let sc = dbg!(sc.inst(&[ty.clone()]));
-                  let expl = Expl(*mname, sc.clone(), alts.clone());
+        let sc = dbg!(sc.inst(&[ty.clone()]));
+        let expl = Expl(*mname, sc.clone(), alts.clone());
 
-                  let ps = ti_expl(&mut ti, &ce_, &ass, &expl)?;
-                  println!("Inferred: {:?}, {:?}", ps, ti);
-              }
+        let ps = ti_expl(&mut ti, &ce_, &ass, &expl)?;
+        println!("Inferred: {:?}, {:?}", ps, ti);
+        }
 
-              if !required_methods.is_empty() {
-                  return Err(format!("Missing methods: {:?}", required_methods));
-              }
+        if !required_methods.is_empty() {
+        return Err(format!("Missing methods: {:?}", required_methods));
+        }
 
-              *ce = ce_;
-          }
+        *ce = ce_;
+        }*/
+        ast::TopLevel::Expr(xp) => {
+            let mut ti = TI::new();
 
-          TopLevel::Expr(xp) => {
-              let mut ti = TI::new();
-
-              match ti_expr(&mut ti, &ce, &ass, &xp).and_then(|(ps, t)| finalize(ti, &ce, &ps, &t)) {
-                  Ok(t) => {
-                      println!("Inferred: {:?}", t);
-                  }
-                  Err(e) => return Err(e),
-              }
-          }*/
+            match ti_expr(&mut ti, &ce, &ass, &convert_expression(xp))
+                .and_then(|(ps, t)| finalize(ti, &ce, &ps, &t))
+            {
+                Ok(t) => {
+                    println!("Inferred: {:?}", t);
+                }
+                Err(e) => return Err(e),
+            }
+        }
     }
 
     Ok(())
