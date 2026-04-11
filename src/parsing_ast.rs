@@ -124,17 +124,7 @@ pub fn type_expr<'tokens, 'src: 'tokens>() -> impl Parser<
     extra::Err<Rich<'tokens, RawToken<'src>>>,
 > {
     recursive(|texpr| {
-        choice((
-            select_ref! {
-                RawToken::LowerIdent(s) => TExpr::Sym(ustr(s)),
-                RawToken::UpperIdent(s) => TExpr::Sym(ustr(s)),
-            }
-            .spanned(),
-            texpr.nested_in(
-                select_ref! {RawToken::Parenthised(ts) = e => ts.split_spanned(e.span())},
-            ),
-        ))
-        .pratt((
+        let tapp = texpr.pratt((
             infix(
                 left(10),
                 just(RawToken::Operator("->")).spanned(),
@@ -155,6 +145,17 @@ pub fn type_expr<'tokens, 'src: 'tokens>() -> impl Parser<
             infix(left(1), empty(), |tc, _, t, e| {
                 TExpr::App(Box::new(tc), Box::new(t)).with_span(e.span())
             }),
+        ));
+
+        choice((
+            select_ref! {
+                RawToken::LowerIdent(s) => TExpr::Sym(ustr(s)),
+                RawToken::UpperIdent(s) => TExpr::Sym(ustr(s)),
+            }
+            .spanned(),
+            tapp.nested_in(
+                select_ref! {RawToken::Parenthised(ts) = e => ts.split_spanned(e.span())},
+            ),
         ))
     })
     .labelled("type expression")
