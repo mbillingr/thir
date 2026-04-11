@@ -65,7 +65,14 @@ pub fn convert_expression(expr: &Spanned<Expr>) -> specific_inference::Expr {
                 convert_expression(f).into(),
                 convert_expression(a).into(),
             ),
-            [f, args @ ..] => todo!(),
+            [f, args @ ..] => {
+                let mut expr = convert_expression(f);
+                for arg in args {
+                    expr =
+                        specific_inference::Expr::App(expr.into(), convert_expression(arg).into());
+                }
+                expr
+            }
         },
         _ => todo!(),
     }
