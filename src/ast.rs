@@ -18,6 +18,14 @@ pub struct TypeDef {
 }
 
 #[derive(Debug)]
+pub struct ClassDef {
+    pub cname: Spanned<ClassName>,
+    pub params: Vec<Spanned<TypeVar>>,
+    pub supers: Vec<Spanned<Constraint>>,
+    pub methods: Vec<Declaration>,
+}
+
+#[derive(Debug)]
 pub struct VariantDef {
     pub name: Spanned<ConstructorName>,
     pub fields: Vec<Spanned<TExpr>>,
@@ -27,6 +35,12 @@ pub struct VariantDef {
 pub struct Constraint {
     pub cls: Spanned<ClassName>,
     pub tys: Vec<Spanned<TExpr>>,
+}
+
+#[derive(Debug)]
+pub struct Declaration {
+    pub name: Spanned<Variable>,
+    pub ty: Spanned<TExpr>,
 }
 
 #[derive(Debug)]
@@ -42,6 +56,9 @@ pub struct ConstructorName(pub Ustr);
 pub struct TypeVar(pub Ustr);
 
 #[derive(Debug)]
+pub struct Variable(pub Ustr);
+
+#[derive(Debug)]
 pub enum TExpr {
     Sym(Ustr),
     App(Box<Spanned<TExpr>>, Box<Spanned<TExpr>>),
@@ -50,14 +67,14 @@ pub enum TExpr {
 #[derive(Debug)]
 pub enum Expr {
     Literal(Literal),
-    Var(Ustr),
+    Var(Variable),
     App(Vec<Spanned<Expr>>),
 }
 
 pub fn convert_expression(expr: &Spanned<Expr>) -> specific_inference::Expr {
     match &expr.inner {
         Expr::Literal(lit) => specific_inference::Expr::Lit(lit.clone()),
-        Expr::Var(name) => specific_inference::Expr::Var(name.clone()),
+        Expr::Var(Variable(name)) => specific_inference::Expr::Var(name.clone()),
         Expr::App(xs) => match xs.as_slice() {
             [] => unimplemented!(),
             [f] => todo!(),

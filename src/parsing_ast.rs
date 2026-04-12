@@ -1,6 +1,6 @@
 use crate::ast::{
     ClassName, Constraint, ConstructorName, Expr, TExpr, TopLevel, TypeDef, TypeName, TypeVar,
-    VariantDef,
+    Variable, VariantDef,
 };
 use crate::parsing_tokenize::{RawToken, Token};
 use crate::specific_inference::Literal;
@@ -172,9 +172,9 @@ pub fn expr<'tokens, 'src: 'tokens>() -> impl Parser<
             select_ref! {
                 RawToken::Int(s) => Expr::Literal(Literal::Int(s.parse().unwrap())),
                 RawToken::Float(s) => Expr::Literal(Literal::Rat(s.parse().unwrap())),
-                RawToken::Operator(s) => Expr::Var(ustr(s)),
-                RawToken::LowerIdent(s) => Expr::Var(ustr(s)),
-                RawToken::UpperIdent(s) => Expr::Var(ustr(s)),
+                RawToken::Operator(s)
+                | RawToken::LowerIdent(s)
+                | RawToken::UpperIdent(s) => Expr::Var(Variable(ustr(s))),
             },
             expr.repeated()
                 .collect()
