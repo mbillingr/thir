@@ -1,6 +1,6 @@
 use crate::ast::{
-    ClassName, Constraint, ConstructorName, Expr, TExpr, TopLevel, TypeDef, TypeName, TypeVar,
-    Variable, VariantDef,
+    ClassName, Constraint, ConstructorName, Declaration, Expr, TExpr, TopLevel, TypeDef, TypeName,
+    TypeVar, Variable, VariantDef,
 };
 use crate::parsing_tokenize::{RawToken, Token};
 use crate::specific_inference::Literal;
@@ -29,7 +29,7 @@ pub fn type_def<'tokens, 'src: 'tokens>() -> impl Parser<
     extra::Err<Rich<'tokens, RawToken<'src>>>,
 > {
     just(RawToken::LowerIdent("data"))
-        .ignore_then(type_name().then(typevar().repeated().collect()))
+        .ignore_then(type_name().then(typevar().spanned().repeated().collect()))
         .then(
             just(RawToken::LowerIdent("where"))
                 .ignore_then(
@@ -81,6 +81,20 @@ pub fn constraint<'tokens, 'src: 'tokens>() -> impl Parser<
         .spanned()
 }
 
+pub fn declaration<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<Declaration>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    variable()
+        .spanned()
+        .then_ignore(just(RawToken::Operator(":")))
+        .then(type_expr())
+        .map(|(name, ty)| Declaration { name, ty })
+        .spanned()
+}
+
 pub fn class_name<'tokens, 'src: 'tokens>() -> impl Parser<
     'tokens,
     MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
@@ -111,10 +125,19 @@ pub fn constructor_name<'tokens, 'src: 'tokens>() -> impl Parser<
 pub fn typevar<'tokens, 'src: 'tokens>() -> impl Parser<
     'tokens,
     MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
-    Spanned<TypeVar>,
+    TypeVar,
     extra::Err<Rich<'tokens, RawToken<'src>>>,
 > {
-    select_ref! {RawToken::LowerIdent(cls) => TypeVar(ustr(cls))}.spanned()
+    select_ref! {RawToken::LowerIdent(cls) => TypeVar(ustr(cls))}
+}
+
+pub fn variable<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Variable,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    select_ref! {RawToken::Operator(name) | RawToken::LowerIdent(name) | RawToken::UpperIdent(name) => Variable(ustr(name))}
 }
 
 pub fn type_expr<'tokens, 'src: 'tokens>() -> impl Parser<
