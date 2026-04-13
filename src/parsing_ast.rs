@@ -1,6 +1,6 @@
 use crate::ast::{
-    ClassName, Constraint, ConstructorName, Declaration, Expr, TExpr, TopLevel, TypeDef, TypeName,
-    TypeVar, Variable, VariantDef,
+    ClassDef, ClassName, Constraint, ConstructorName, Declaration, Expr, TExpr, TopLevel, TypeDef,
+    TypeName, TypeVar, Variable, VariantDef,
 };
 use crate::parsing_tokenize::{RawToken, Token};
 use crate::specific_inference::Literal;
@@ -17,6 +17,7 @@ pub fn toplevel<'tokens, 'src: 'tokens>() -> impl Parser<
 > {
     choice((
         type_def().map(TopLevel::TypeDef),
+        class_def().map(TopLevel::ClassDef),
         expr().map(TopLevel::Expr),
     ))
     .spanned()
@@ -28,22 +29,14 @@ pub fn type_def<'tokens, 'src: 'tokens>() -> impl Parser<
     Spanned<TypeDef>,
     extra::Err<Rich<'tokens, RawToken<'src>>>,
 > {
-    just(RawToken::LowerIdent("data"))
+    just(RawToken::KeywordData)
         .ignore_then(type_name().then(typevar().spanned().repeated().collect()))
-        .then(
-            just(RawToken::LowerIdent("where"))
-                .ignore_then(
-                    constraint()
-                        .separated_by(just(RawToken::Operator(",")))
-                        .collect(),
-                )
-                .or_not()
-                .map(Option::unwrap_or_default),
-        )
+        .then(optional_constraints())
         .then(
             just(RawToken::Operator("=")).ignore_then(
                 variant_def()
                     .separated_by(just(RawToken::Operator("|")))
+                    .allow_leading()
                     .collect(),
             ),
         )
@@ -52,6 +45,31 @@ pub fn type_def<'tokens, 'src: 'tokens>() -> impl Parser<
             params,
             constraints,
             variants,
+        })
+        .spanned()
+}
+
+pub fn class_def<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Spanned<ClassDef>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    just(RawToken::KeywordTrait)
+        .ignore_then(class_name().then(typevar().spanned().repeated().collect()))
+        .then(optional_constraints())
+        .then(
+            declaration()
+                .separated_by(just(RawToken::Operator(";")))
+                .allow_trailing()
+                .collect()
+                .nested_in(select_ref! {RawToken::Braced(ts) = e => ts.split_spanned(e.span())}),
+        )
+        .map(|(((cname, params), supers), methods)| ClassDef {
+            cname,
+            params,
+            supers,
+            methods,
         })
         .spanned()
 }
@@ -67,6 +85,23 @@ pub fn variant_def<'tokens, 'src: 'tokens>() -> impl Parser<
         .then(type_expr().repeated().collect())
         .map(|(name, fields)| VariantDef { name, fields })
         .spanned()
+}
+
+pub fn optional_constraints<'tokens, 'src: 'tokens>() -> impl Parser<
+    'tokens,
+    MappedInput<'tokens, RawToken<'src>, SimpleSpan, &'tokens [Token<'src>]>,
+    Vec<Spanned<Constraint>>,
+    extra::Err<Rich<'tokens, RawToken<'src>>>,
+> {
+    just(RawToken::KeywordWhere)
+        .ignore_then(
+            constraint()
+                .separated_by(just(RawToken::Operator(",")))
+                .allow_trailing()
+                .collect(),
+        )
+        .or_not()
+        .map(Option::unwrap_or_default)
 }
 
 pub fn constraint<'tokens, 'src: 'tokens>() -> impl Parser<

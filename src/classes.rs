@@ -151,11 +151,11 @@ impl EnvTransformer {
         let sis = Rc::new(sis);
         EnvTransformer(Rc::new(move |ce| {
             if ce.is_defined(&i) {
-                Err("class {i} already defined")?
+                Err(format!("class {i} already defined"))?
             }
             for j in sis.iter() {
                 if !ce.is_defined(j) {
-                    Err("superclass {j} not defined")?
+                    Err(format!("superclass {j} not defined"))?
                 }
             }
             Ok(ce.modify(i.clone(), Class(sis.clone(), list![])))

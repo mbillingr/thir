@@ -503,46 +503,45 @@ fn process_toplevel(
             let (ty, ass_) = process_typedef(&def, &tenv)?;
             tenv.insert(def.tname.inner.0, ty);
             ass.extend(ass_);
-        } /*TopLevel::ClassDef(def) => {
-        let ce_ = EnvTransformer::add_class(def.name, def.supers.clone())
-        .apply(&ce)
-        .unwrap();
+        }
+        ast::TopLevel::ClassDef(def) => {
+            let supers = def.supers.iter().map(|c| ustr(&c.cls.0)).collect();
+            let ce_ = EnvTransformer::add_class(def.inner.cname.0, supers).apply(&ce)?;
 
-        let mut cls_tenv = tenv.clone();
+            let mut cls_tenv = tenv.clone();
 
-        let tvs: Vec<_> = def
-        .vars
-        .iter()
-        .map(|v| Tyvar(v.clone(), Kind::Star))
-        .collect();
-        for (&v, tv) in def.vars.iter().zip(&tvs) {
-        let tvar = Type::TVar(tv.clone());
-        cls_tenv.insert(v, tvar.clone());
+            let tvs: Vec<_> = def.params.iter().map(|v| Tyvar(v.0, Kind::Star)).collect();
+            for (v, tv) in def.params.iter().zip(&tvs) {
+                let tvar = Type::TVar(tv.clone());
+                cls_tenv.insert(v.0, tvar.clone());
+            }
+
+            if tvs.len() != 1 {
+                return Err("class must have exactly one type variable".into());
+            }
+
+            let tvar = Type::TVar(tvs[0].clone());
+
+            for decl in &def.methods {
+                let ty = process_type_expr(&decl.ty, &cls_tenv)?;
+                let sc = Scheme::quantify_by_var_order(
+                    &tvs,
+                    &Qual(vec![Pred::IsIn(def.cname.0, tvar.clone())], ty),
+                );
+
+                // todo: not sure if I want class methods to be global functions
+                ass.push(Assump { i: decl.name.0, sc });
+
+                cls_methods
+                    .entry(def.cname.0)
+                    .or_default()
+                    .push(decl.name.0);
+            }
+
+            *ce = ce_;
         }
 
-        if tvs.len() != 1 {
-        return Err("class must have exactly one type variable".into());
-        }
-
-        let tvar = Type::TVar(tvs[0].clone());
-
-        for decl in &def.methods {
-        let ty = process_type_expr(&decl.ty, &cls_tenv)?;
-        let sc = Scheme::quantify_by_var_order(
-        &tvs,
-        &Qual(vec![Pred::IsIn(def.name, tvar.clone())], ty),
-        );
-
-        // todo: not sure if I want class methods to be global functions
-        ass.push(Assump { i: decl.name, sc });
-
-        cls_methods.entry(def.name).or_default().push(decl.name);
-        }
-
-        *ce = ce_;
-        }
-
-        TopLevel::ClassImpl(impl_) => {
+        /*TopLevel::ClassImpl(impl_) => {
         if impl_.tys.len() != 1 {
         return Err("classes support exactly one type parameter".into());
         }

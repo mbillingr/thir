@@ -6,6 +6,7 @@ use ustr::Ustr;
 #[derive(Debug)]
 pub enum TopLevel {
     TypeDef(Spanned<TypeDef>),
+    ClassDef(Spanned<ClassDef>),
     Expr(Spanned<Expr>),
 }
 
@@ -22,7 +23,7 @@ pub struct ClassDef {
     pub cname: Spanned<ClassName>,
     pub params: Vec<Spanned<TypeVar>>,
     pub supers: Vec<Spanned<Constraint>>,
-    pub methods: Vec<Declaration>,
+    pub methods: Vec<Spanned<Declaration>>,
 }
 
 #[derive(Debug)]

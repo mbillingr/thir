@@ -9,6 +9,11 @@ pub enum RawToken<'a> {
     Float(&'a str),
     String(&'a str),
     Parenthised(Vec<Token<'a>>),
+    Braced(Vec<Token<'a>>),
+
+    KeywordData,
+    KeywordTrait,
+    KeywordWhere,
 }
 
 impl std::fmt::Display for RawToken<'_> {
@@ -27,6 +32,9 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Token<'src>>, extra::Er
     recursive(|token| {
         choice((
             text::ident().map(|s: &str| match s {
+                s if s == "data" => RawToken::KeywordData,
+                s if s == "trait" => RawToken::KeywordTrait,
+                s if s == "where" => RawToken::KeywordWhere,
                 s if s.chars().next().unwrap().is_uppercase() => RawToken::UpperIdent(s),
                 s if s.chars().next().unwrap().is_lowercase() => RawToken::LowerIdent(s),
                 _ => unreachable!(),
@@ -34,12 +42,23 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Token<'src>>, extra::Er
             text::int(10).map(RawToken::Int),
             operator(),
             token
+                .clone()
                 .repeated()
                 .collect()
+                .padded()
                 .delimited_by(just('('), just(')'))
-                .labelled("token tree")
+                .labelled("(token tree)")
                 .as_context()
                 .map(RawToken::Parenthised),
+            token
+                .clone()
+                .repeated()
+                .collect()
+                .padded()
+                .delimited_by(just('{'), just('}'))
+                .labelled("{token tree}")
+                .as_context()
+                .map(RawToken::Braced),
         ))
         .spanned()
         .padded()
@@ -50,9 +69,38 @@ pub fn lexer<'src>() -> impl Parser<'src, &'src str, Vec<Token<'src>>, extra::Er
 
 fn operator<'src>(
 ) -> impl Parser<'src, &'src str, RawToken<'src>, extra::Err<Rich<'src, char>>> + Clone {
-    one_of("/+-*=<>,;.|&")
+    one_of("/+-*=<>:;,.|&")
         .repeated()
         .at_least(1)
         .to_slice()
         .map(RawToken::Operator)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_braces0() {
+        let tokens = lexer().parse("{}").unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].inner, RawToken::Braced(vec![]));
+
+        let tokens = lexer().parse("{   }").unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].inner, RawToken::Braced(vec![]));
+    }
+
+    #[test]
+    fn parse_braces1() {
+        let tokens = lexer().parse("{x}").unwrap();
+
+        assert_eq!(tokens.len(), 1);
+        let RawToken::Braced(inner) = &tokens[0].inner else {
+            panic!("not braced")
+        };
+
+        assert_eq!(inner.len(), 1);
+        assert_eq!(inner[0].inner, RawToken::LowerIdent("x"));
+    }
 }
